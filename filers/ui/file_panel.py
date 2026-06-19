@@ -50,6 +50,8 @@ class FilePanel(QWidget):
     request_diff = pyqtSignal(str, str)
     request_open_editor = pyqtSignal(str)
     file_selected = pyqtSignal(str)
+    request_copy_to = pyqtSignal(list)
+    request_move_to = pyqtSignal(list)
 
     def __init__(self, local_provider: LocalProvider, label: str = "Panneau", parent=None):
         super().__init__(parent)
@@ -306,6 +308,14 @@ class FilePanel(QWidget):
         if entries:
             toggle_hidden_act = menu.addAction("Basculer caché")
             toggle_hidden_act.triggered.connect(lambda: self._toggle_hidden(entries[0]))
+
+        if entries:
+            menu.addSeparator()
+            paths = [e.path for e in entries]
+            copy_act = menu.addAction("Copier vers l'autre panneau  [F5]")
+            copy_act.triggered.connect(lambda: self.request_copy_to.emit(paths))
+            move_act = menu.addAction("Déplacer vers l'autre panneau  [F6]")
+            move_act.triggered.connect(lambda: self.request_move_to.emit(paths))
 
         menu.exec(self._tree.viewport().mapToGlobal(pos))
 

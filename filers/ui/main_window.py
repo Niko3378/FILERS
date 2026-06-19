@@ -2,7 +2,7 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QTabWidget, QToolBar, QStatusBar, QLabel, QCheckBox, QMenuBar,
-    QMenu, QMessageBox, QApplication
+    QMenu, QMessageBox, QApplication, QProgressDialog
 )
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QKeySequence, QIcon
@@ -53,6 +53,31 @@ class ConnectWorker(QThread):
             self.error.emit(str(e))
 
 
+class CopyWorker(QThread):
+    progress = pyqtSignal(int, int, str)
+    finished = pyqtSignal(list)
+
+    def __init__(self, operations: list, provider, move: bool = False):
+        super().__init__()
+        self._ops = operations
+        self._provider = provider
+        self._move = move
+
+    def run(self):
+        errors = []
+        total = len(self._ops)
+        for i, (src, dst) in enumerate(self._ops):
+            self.progress.emit(i, total, os.path.basename(src))
+            try:
+                if self._move:
+                    self._provider.move(src, dst)
+                else:
+                    self._provider.copy(src, dst)
+            except Exception as e:
+                errors.append(f"{os.path.basename(src)}: {e}")
+        self.finished.emit(errors)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -60,6 +85,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1200, 700)
         self._local = LocalProvider(show_hidden=False)
         self._connect_workers = []
+        self._copy_workers = []
+        self._active_panel = None
         self._build_menu()
         self._build_ui()
         self._build_statusbar()
@@ -153,10 +180,22 @@ class MainWindow(QMainWindow):
         self._act_hidden.toggled.connect(act_hidden_tb.setChecked)
         toolbar.addAction(act_hidden_tb)
 
-        act_refresh = QAction("Actualiser [F5]", self)
-        act_refresh.setShortcut(QKeySequence("F5"))
+        act_refresh = QAction("Actualiser", self)
+        act_refresh.setShortcut(QKeySequence("Ctrl+R"))
         act_refresh.triggered.connect(self._refresh_all)
         toolbar.addAction(act_refresh)
+
+        act_copy_tb = QAction("F5 Copier →", self)
+        act_copy_tb.setShortcut(QKeySequence("F5"))
+        act_copy_tb.setToolTip("Copier la sélection vers l'autre panneau")
+        act_copy_tb.triggered.connect(lambda: self._do_copy_to_other(move=False))
+        toolbar.addAction(act_copy_tb)
+
+        act_move_tb = QAction("F6 Déplacer →", self)
+        act_move_tb.setShortcut(QKeySequence("F6"))
+        act_move_tb.setToolTip("Déplacer la sélection vers l'autre panneau")
+        act_move_tb.triggered.connect(lambda: self._do_copy_to_other(move=True))
+        toolbar.addAction(act_move_tb)
 
         act_connect_tb = QAction("Réseau…", self)
         act_connect_tb.triggered.connect(self._open_connect)
@@ -226,6 +265,17 @@ class MainWindow(QMainWindow):
         self._left_panel.file_selected.connect(self._preview_panel.load_file)
         self._right_panel.file_selected.connect(self._preview_panel.load_file)
 
+        self._left_panel.selection_changed.connect(lambda _: self._set_active(self._left_panel))
+        self._right_panel.selection_changed.connect(lambda _: self._set_active(self._right_panel))
+        self._left_panel.request_copy_to.connect(
+            lambda paths: self._copy_between_panels(paths, self._right_panel.get_current_path(), move=False))
+        self._left_panel.request_move_to.connect(
+            lambda paths: self._copy_between_panels(paths, self._right_panel.get_current_path(), move=True))
+        self._right_panel.request_copy_to.connect(
+            lambda paths: self._copy_between_panels(paths, self._left_panel.get_current_path(), move=False))
+        self._right_panel.request_move_to.connect(
+            lambda paths: self._copy_between_panels(paths, self._left_panel.get_current_path(), move=True))
+
         main_layout.addWidget(h_splitter)
 
     def _restore_settings(self):
@@ -244,6 +294,55 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self._status)
         self._status_label = QLabel("Prêt")
         self._status.addWidget(self._status_label)
+
+    def _set_active(self, panel):
+        self._active_panel = panel
+
+    def _do_copy_to_other(self, move: bool):
+        src_panel = self._active_panel or self._left_panel
+        dst_panel = self._right_panel if src_panel is self._left_panel else self._left_panel
+        paths = src_panel.get_selected_paths()
+        if not paths:
+            QMessageBox.information(self, "Copie", "Aucun fichier sélectionné.")
+            return
+        self._copy_between_panels(paths, dst_panel.get_current_path(), move=move)
+
+    def _copy_between_panels(self, sources: list, target_path: str, move: bool = False):
+        if not target_path:
+            QMessageBox.warning(self, "Copie", "Chemin de destination invalide.")
+            return
+
+        ops = [(src, os.path.join(target_path, os.path.basename(src))) for src in sources]
+        verb = "Déplacement" if move else "Copie"
+
+        dlg = QProgressDialog(f"{verb} en cours…", "Annuler", 0, len(ops), self)
+        dlg.setWindowTitle(verb)
+        dlg.setMinimumDuration(0)
+        dlg.setModal(True)
+        dlg.setValue(0)
+
+        worker = CopyWorker(ops, self._local, move=move)
+        self._copy_workers.append(worker)
+
+        def on_progress(current, total, name):
+            if dlg.wasCanceled():
+                worker.terminate()
+                return
+            dlg.setLabelText(f"{verb} : {name}")
+            dlg.setValue(current)
+
+        def on_finished(errors):
+            dlg.setValue(len(ops))
+            dlg.close()
+            self._left_panel.refresh()
+            self._right_panel.refresh()
+            if errors:
+                QMessageBox.warning(self, f"{verb} — erreurs",
+                                    "\n".join(errors[:10]))
+
+        worker.progress.connect(on_progress)
+        worker.finished.connect(on_finished)
+        worker.start()
 
     def _toggle_hidden(self, show: bool):
         self._local.show_hidden = show
