@@ -1,0 +1,7 @@
+PyQt6>=6.6.0
+PyQt6-Qt6>=6.6.0
+paramiko>=3.4.0
+pysmb>=1.2.9.1
+chardet>=5.2.0
+PyMuPDF>=1.23.0
+pywin32>=306; sys_platform == "win32"

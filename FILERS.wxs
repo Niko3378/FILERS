@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="Files Manager"
+           Language="1036"
+           Version="1.0.0"
+           Manufacturer="IA-Projet6"
+           UpgradeCode="B7C4A2F1-3E8D-4B5C-9A1D-F2E6C8B4A573"
+           Scope="perUser">
+
+    <MajorUpgrade DowngradeErrorMessage="Une version plus récente de Files Manager est déjà installée." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AppIcon" SourceFile="filers\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <ui:WixUI Id="WixUI_InstallDir" />
+    <WixVariable Id="WixUILicenseRtf" Value="filers\license.rtf" />
+
+    <Feature Id="Complete">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="DesktopShortcutComp" />
+    </Feature>
+
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="Files Manager" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="FilersExeComp">
+        <File Id="FilersExeFile" Source="dist\Files Manager.exe" KeyPath="yes" />
+        <RemoveFolder Id="CleanInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="DesktopShortcutComp" Directory="DesktopFolder"
+               Guid="A3F7B8C2-D4E5-4F6A-8B9C-E1D2F3A4B5C6">
+      <Shortcut Id="DesktopLink"
+                Name="Files Manager"
+                Description="Files Manager — Gestionnaire de fichiers"
+                Target="[INSTALLFOLDER]Files Manager.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKCU"
+                     Key="Software\IA-Projet6\FilesManager"
+                     Name="ShortcutInstalled"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+  </Fragment>
+
+</Wix>
