@@ -57,24 +57,79 @@ class CopyWorker(QThread):
     progress = pyqtSignal(int, int, str)
     finished = pyqtSignal(list)
 
-    def __init__(self, operations: list, provider, move: bool = False):
+    def __init__(self, operations: list, move: bool = False,
+                 skip_existing: bool = False, rename_conflicts: bool = False):
         super().__init__()
         self._ops = operations
-        self._provider = provider
         self._move = move
+        self._skip = skip_existing
+        self._rename = rename_conflicts
+
+    def _free_dst(self, dst: str) -> str:
+        if not lp.exists(dst):
+            return dst
+        base, ext = os.path.splitext(dst)
+        i = 1
+        while True:
+            candidate = f"{base} ({i}){ext}"
+            if not lp.exists(candidate):
+                return candidate
+            i += 1
+
+    def _walk(self, src: str, dst: str, dirs: list, files: list):
+        dirs.append((src, dst))
+        try:
+            with lp.scandir(src) as it:
+                for entry in it:
+                    s = lp.denormalize(entry.path)
+                    d = os.path.join(dst, entry.name)
+                    if entry.is_dir(follow_symlinks=False):
+                        self._walk(s, d, dirs, files)
+                    else:
+                        files.append((s, d))
+        except Exception:
+            pass
+
+    def _collect(self):
+        dirs, files = [], []
+        for src, dst in self._ops:
+            if lp.isdir(src):
+                self._walk(src, dst, dirs, files)
+            else:
+                files.append((src, dst))
+        return dirs, files
 
     def run(self):
         errors = []
-        total = len(self._ops)
-        for i, (src, dst) in enumerate(self._ops):
-            self.progress.emit(i, total, os.path.basename(src))
+        dirs, files = self._collect()
+
+        for _, dst in dirs:
             try:
+                lp.makedirs(dst)
+            except Exception as e:
+                errors.append(f"{os.path.basename(dst)}: {e}")
+
+        total = len(files)
+        for i, (src, dst) in enumerate(files):
+            self.progress.emit(i, total, os.path.basename(src))
+            if self._skip and lp.exists(dst):
+                continue
+            if self._rename:
+                dst = self._free_dst(dst)
+            try:
+                lp.copy2(src, dst)
                 if self._move:
-                    self._provider.move(src, dst)
-                else:
-                    self._provider.copy(src, dst)
+                    lp.remove(src)
             except Exception as e:
                 errors.append(f"{os.path.basename(src)}: {e}")
+
+        if self._move:
+            for src, _ in reversed(dirs):
+                try:
+                    lp.rmdir(src)
+                except Exception:
+                    pass
+
         self.finished.emit(errors)
 
 
@@ -315,13 +370,38 @@ class MainWindow(QMainWindow):
         ops = [(src, os.path.join(target_path, os.path.basename(src))) for src in sources]
         verb = "Déplacement" if move else "Copie"
 
-        dlg = QProgressDialog(f"{verb} en cours…", "Annuler", 0, len(ops), self)
+        # Conflict detection
+        conflicts = [dst for _, dst in ops if lp.exists(dst)]
+        skip_existing = False
+        rename_conflicts = False
+        if conflicts:
+            n = len(conflicts)
+            detail = "\n".join(os.path.basename(c) for c in conflicts[:10])
+            if n > 10:
+                detail += f"\n… (+{n - 10} autres)"
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Conflit de destination")
+            msg.setText(f"{n} élément(s) existent déjà dans la destination.")
+            msg.setDetailedText(detail)
+            btn_overwrite = msg.addButton("Écraser", QMessageBox.ButtonRole.AcceptRole)
+            btn_rename = msg.addButton("Renommer", QMessageBox.ButtonRole.AcceptRole)
+            btn_skip = msg.addButton("Ignorer les existants", QMessageBox.ButtonRole.AcceptRole)
+            msg.addButton("Annuler", QMessageBox.ButtonRole.RejectRole)
+            msg.exec()
+            clicked = msg.clickedButton()
+            if clicked is None or clicked not in (btn_overwrite, btn_rename, btn_skip):
+                return
+            skip_existing = clicked is btn_skip
+            rename_conflicts = clicked is btn_rename
+
+        dlg = QProgressDialog(f"{verb} en cours…", "Annuler", 0, 100, self)
         dlg.setWindowTitle(verb)
         dlg.setMinimumDuration(0)
         dlg.setModal(True)
         dlg.setValue(0)
 
-        worker = CopyWorker(ops, self._local, move=move)
+        worker = CopyWorker(ops, move=move, skip_existing=skip_existing,
+                            rename_conflicts=rename_conflicts)
         self._copy_workers.append(worker)
 
         def on_progress(current, total, name):
@@ -329,16 +409,15 @@ class MainWindow(QMainWindow):
                 worker.terminate()
                 return
             dlg.setLabelText(f"{verb} : {name}")
-            dlg.setValue(current)
+            dlg.setValue(int(current / total * 100) if total else 100)
 
         def on_finished(errors):
-            dlg.setValue(len(ops))
+            dlg.setValue(100)
             dlg.close()
             self._left_panel.refresh()
             self._right_panel.refresh()
             if errors:
-                QMessageBox.warning(self, f"{verb} — erreurs",
-                                    "\n".join(errors[:10]))
+                QMessageBox.warning(self, f"{verb} — erreurs", "\n".join(errors[:10]))
 
         worker.progress.connect(on_progress)
         worker.finished.connect(on_finished)
