@@ -209,6 +209,30 @@ class LocalProvider:
         except Exception:
             return []
 
+    def delete_to_trash(self, path: str):
+        if os.name == "nt":
+            import ctypes, ctypes.wintypes
+            class SHFILEOPSTRUCTW(ctypes.Structure):
+                _fields_ = [
+                    ("hwnd",                  ctypes.wintypes.HWND),
+                    ("wFunc",                 ctypes.wintypes.UINT),
+                    ("pFrom",                 ctypes.c_wchar_p),
+                    ("pTo",                   ctypes.c_wchar_p),
+                    ("fFlags",                ctypes.wintypes.WORD),
+                    ("fAnyOperationsAborted", ctypes.wintypes.BOOL),
+                    ("hNameMappings",         ctypes.c_void_p),
+                    ("lpszProgressTitle",     ctypes.c_wchar_p),
+                ]
+            op = SHFILEOPSTRUCTW()
+            op.wFunc  = 3            # FO_DELETE
+            op.pFrom  = lp.normalize(path) + "\0"
+            op.fFlags = 0x0040 | 0x0010  # FOF_ALLOWUNDO | FOF_NOCONFIRMATION
+            ret = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
+            if ret != 0:
+                raise OSError(f"SHFileOperation a échoué (code {ret})")
+        else:
+            self.delete(path)
+
     def set_hidden(self, path: str, hidden: bool):
         if os.name == "nt":
             import ctypes

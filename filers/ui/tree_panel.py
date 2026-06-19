@@ -1,12 +1,13 @@
 import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
-    QLabel, QAbstractItemView, QHeaderView
+    QLabel, QAbstractItemView, QHeaderView, QMenu
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
 from PyQt6.QtGui import QColor, QFont
 
 from core.local_provider import LocalProvider
+from core import settings
 
 
 class TreeLoader(QThread):
@@ -24,6 +25,7 @@ class TreeLoader(QThread):
 
 class TreePanel(QWidget):
     navigate = pyqtSignal(str)
+    remove_from_favorites = pyqtSignal(str)
 
     def __init__(self, local_provider: LocalProvider, parent=None):
         super().__init__(parent)
@@ -46,10 +48,33 @@ class TreePanel(QWidget):
         self._tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._tree.itemExpanded.connect(self._on_expand)
         self._tree.itemClicked.connect(self._on_click)
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._show_context_menu)
         layout.addWidget(self._tree)
 
     def _load_roots(self):
         self._tree.clear()
+        favs = settings.get_history("favorites")
+        if favs:
+            fav_root = QTreeWidgetItem(["★ Favoris"])
+            fav_root.setData(0, Qt.ItemDataRole.UserRole, None)
+            fav_root.setData(0, Qt.ItemDataRole.UserRole + 1, "favorites_header")
+            fav_root.setFlags(fav_root.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            font = fav_root.font(0)
+            font.setBold(True)
+            fav_root.setFont(0, font)
+            fav_root.setForeground(0, QColor("#e67e22"))
+            self._tree.addTopLevelItem(fav_root)
+            for path in favs:
+                name = os.path.basename(path.rstrip("\\/")) or path
+                child = QTreeWidgetItem([name])
+                child.setData(0, Qt.ItemDataRole.UserRole, path)
+                child.setData(0, Qt.ItemDataRole.UserRole + 1, "favorite")
+                child.setToolTip(0, path)
+                child.setForeground(0, QColor("#d35400"))
+                fav_root.addChild(child)
+            fav_root.setExpanded(True)
+
         for root in self._local.get_roots():
             item = QTreeWidgetItem([root])
             item.setData(0, Qt.ItemDataRole.UserRole, root)
@@ -118,6 +143,21 @@ class TreePanel(QWidget):
         root = self._tree.invisibleRootItem()
         for i in range(root.childCount()):
             reload_item(root.child(i))
+
+    def refresh_favorites(self):
+        self._load_roots()
+
+    def _show_context_menu(self, pos):
+        item = self._tree.itemAt(pos)
+        if not item:
+            return
+        kind = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        if kind == "favorite":
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            menu = QMenu(self)
+            act = menu.addAction("★ Retirer des favoris")
+            act.triggered.connect(lambda: self.remove_from_favorites.emit(path))
+            menu.exec(self._tree.viewport().mapToGlobal(pos))
 
     def add_network_root(self, label: str, path: str):
         item = QTreeWidgetItem([label])

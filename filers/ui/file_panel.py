@@ -3,10 +3,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
     QLabel, QLineEdit, QPushButton, QMenu, QAbstractItemView,
     QHeaderView, QToolBar, QComboBox, QMessageBox, QInputDialog,
-    QProgressDialog, QFileDialog
+    QProgressDialog, QFileDialog, QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot, QMimeData, QUrl
-from PyQt6.QtGui import QIcon, QColor, QFont, QAction, QDrag
+from PyQt6.QtGui import QIcon, QColor, QFont, QAction, QDrag, QKeySequence, QShortcut
 
 from core.local_provider import LocalProvider, FileEntry
 from core.ftp_provider import FTPProvider, SFTPProvider, RemoteEntry
@@ -25,6 +25,96 @@ def fmt_size(size: int) -> str:
             return f"{s:.1f} {unit}"
         s /= 1024
     return f"{s:.1f} Po"
+
+
+class FileTree(QTreeWidget):
+    files_dropped = pyqtSignal(list)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.viewport().setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.setDefaultDropAction(Qt.DropAction.CopyAction)
+
+    def startDrag(self, supported_actions):
+        paths = []
+        for item in self.selectedItems():
+            entry = item.data(0, Qt.ItemDataRole.UserRole)
+            if entry and hasattr(entry, "path"):
+                paths.append(entry.path)
+        if not paths:
+            return
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(p) for p in paths])
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction,
+                  Qt.DropAction.CopyAction)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            paths = [u.toLocalFile() for u in event.mimeData().urls() if u.toLocalFile()]
+            if paths:
+                self.files_dropped.emit(paths)
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            event.ignore()
+
+
+class SearchWorker(QThread):
+    found = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, provider, root: str, pattern: str):
+        super().__init__()
+        self._provider = provider
+        self._root = root
+        self._pattern = pattern.lower()
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        try:
+            results = []
+            self._walk(self._root, results)
+            if not self._cancelled:
+                self.found.emit(results)
+        except Exception as e:
+            self.error.emit(str(e))
+
+    def _walk(self, path: str, results: list):
+        if self._cancelled:
+            return
+        try:
+            for entry in self._provider.list_dir(path):
+                if self._cancelled:
+                    return
+                if self._pattern in entry.name.lower():
+                    results.append(entry)
+                if entry.is_dir:
+                    self._walk(entry.path, results)
+        except Exception:
+            pass
 
 
 class LoadWorker(QThread):
@@ -52,6 +142,8 @@ class FilePanel(QWidget):
     file_selected = pyqtSignal(str)
     request_copy_to = pyqtSignal(list)
     request_move_to = pyqtSignal(list)
+    files_dropped = pyqtSignal(list)
+    add_to_favorites = pyqtSignal(str)
 
     def __init__(self, local_provider: LocalProvider, label: str = "Panneau", parent=None):
         super().__init__(parent)
@@ -62,6 +154,8 @@ class FilePanel(QWidget):
         self._future = []
         self._label_text = label
         self._worker = None
+        self._search_worker = None
+        self._is_searching = False
         self._build_ui()
         key = f"last_path_{label.lower()}"
         saved = settings.get(key, "")
@@ -114,7 +208,40 @@ class FilePanel(QWidget):
         self._long_path_banner.hide()
         layout.addWidget(self._long_path_banner)
 
-        self._tree = QTreeWidget()
+        # Filter / search bar
+        self._filter_bar = QWidget()
+        fb = QHBoxLayout(self._filter_bar)
+        fb.setContentsMargins(2, 2, 2, 2)
+        fb.addWidget(QLabel("Filtrer :"))
+        self._filter_edit = QLineEdit()
+        self._filter_edit.setPlaceholderText("Nom de fichier… (Échap pour fermer)")
+        self._filter_edit.textChanged.connect(self._on_filter_changed)
+        self._filter_edit.returnPressed.connect(self._on_search_trigger)
+        fb.addWidget(self._filter_edit)
+        self._subdirs_check = QCheckBox("Sous-dossiers")
+        fb.addWidget(self._subdirs_check)
+        search_btn = QPushButton("Chercher")
+        search_btn.clicked.connect(self._on_search_trigger)
+        fb.addWidget(search_btn)
+        self._back_search_btn = QPushButton("← Retour")
+        self._back_search_btn.clicked.connect(self._on_search_back)
+        self._back_search_btn.hide()
+        fb.addWidget(self._back_search_btn)
+        self._filter_bar.hide()
+        layout.addWidget(self._filter_bar)
+
+        self._search_banner = QLabel()
+        self._search_banner.setStyleSheet(
+            "background:#e8f4fd;border:1px solid #aad4f5;border-radius:3px;"
+            "padding:2px 6px;font-size:11px;")
+        self._search_banner.hide()
+        layout.addWidget(self._search_banner)
+
+        QShortcut(QKeySequence("Ctrl+F"), self, self._toggle_filter_bar)
+        QShortcut(QKeySequence("Escape"), self._filter_edit, self._clear_filter)
+
+        self._tree = FileTree()
+        self._tree.files_dropped.connect(self.files_dropped)
         self._tree.setColumnCount(5)
         self._tree.setHeaderLabels(["Nom", "Taille", "Type", "Modifié", "Droits"])
         self._tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -139,6 +266,8 @@ class FilePanel(QWidget):
     def _navigate(self, path: str):
         if path == self._current_path:
             return
+        if self._is_searching:
+            self._on_search_back(clear_filter=False)
         if self._current_path:
             self._history.append(self._current_path)
             self._future.clear()
@@ -276,6 +405,86 @@ class FilePanel(QWidget):
         else:
             QMessageBox.warning(self, "Erreur", f"Chemin invalide : {path}")
 
+    def _toggle_filter_bar(self):
+        if self._filter_bar.isVisible():
+            self._clear_filter()
+        else:
+            self._filter_bar.show()
+            self._filter_edit.setFocus()
+            self._filter_edit.selectAll()
+
+    def _on_filter_changed(self, text: str):
+        if self._subdirs_check.isChecked():
+            return
+        text = text.lower()
+        for i in range(self._tree.topLevelItemCount()):
+            item = self._tree.topLevelItem(i)
+            item.setHidden(bool(text) and text not in item.text(0).lower())
+
+    def _on_search_trigger(self):
+        text = self._filter_edit.text().strip()
+        if not text:
+            return
+        if not self._subdirs_check.isChecked():
+            self._on_filter_changed(text)
+            return
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.cancel()
+        self._is_searching = True
+        self._search_banner.setText(f"Recherche «{text}» en cours…")
+        self._search_banner.show()
+        self._back_search_btn.show()
+        self._search_worker = SearchWorker(self._provider, self._current_path, text)
+        self._search_worker.found.connect(self._on_search_results)
+        self._search_worker.error.connect(self._on_load_error)
+        self._search_worker.start()
+
+    def _on_search_results(self, entries: list):
+        self._populate(entries)
+        text = self._filter_edit.text().strip()
+        self._search_banner.setText(
+            f"Résultats pour «{text}» — {len(entries)} élément(s)  |  "
+            f"Racine : {self._current_path}")
+
+    def _on_search_back(self, clear_filter: bool = True):
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.cancel()
+        self._is_searching = False
+        self._search_banner.hide()
+        self._back_search_btn.hide()
+        if clear_filter:
+            self._clear_filter()
+        self._load_entries()
+
+    def _clear_filter(self):
+        self._filter_edit.clear()
+        self._filter_bar.hide()
+        self._search_banner.hide()
+        self._back_search_btn.hide()
+        if self._is_searching:
+            self._is_searching = False
+            self._load_entries()
+        else:
+            for i in range(self._tree.topLevelItemCount()):
+                self._tree.topLevelItem(i).setHidden(False)
+
+    def _delete_to_trash(self, entries):
+        names = ", ".join(e.name for e in entries[:3])
+        if len(entries) > 3:
+            names += f" (+{len(entries)-3})"
+        reply = QMessageBox.question(
+            self, "Envoyer à la corbeille",
+            f"Envoyer à la corbeille : {names} ?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            for e in entries:
+                try:
+                    self._local.delete_to_trash(e.path)
+                except Exception as ex:
+                    QMessageBox.warning(self, "Erreur", f"{e.name} : {ex}")
+            self._load_entries()
+
     def _show_context_menu(self, pos):
         items = self._tree.selectedItems()
         entries = [i.data(0, Qt.ItemDataRole.UserRole) for i in items if i.data(0, Qt.ItemDataRole.UserRole)]
@@ -299,7 +508,9 @@ class FilePanel(QWidget):
         if entries:
             rename_act = menu.addAction("Renommer")
             rename_act.triggered.connect(lambda: self._rename(entries[0]))
-            del_act = menu.addAction("Supprimer")
+            trash_act = menu.addAction("Supprimer (Corbeille)")
+            trash_act.triggered.connect(lambda: self._delete_to_trash(entries))
+            del_act = menu.addAction("Supprimer définitivement")
             del_act.triggered.connect(lambda: self._delete(entries))
             menu.addSeparator()
             rights_act = menu.addAction("Droits / Permissions")
@@ -316,6 +527,11 @@ class FilePanel(QWidget):
             copy_act.triggered.connect(lambda: self.request_copy_to.emit(paths))
             move_act = menu.addAction("Déplacer vers l'autre panneau  [F6]")
             move_act.triggered.connect(lambda: self.request_move_to.emit(paths))
+
+        if len(entries) == 1 and entries[0].is_dir:
+            menu.addSeparator()
+            fav_act = menu.addAction("★ Ajouter aux favoris")
+            fav_act.triggered.connect(lambda: self.add_to_favorites.emit(entries[0].path))
 
         menu.exec(self._tree.viewport().mapToGlobal(pos))
 

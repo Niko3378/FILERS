@@ -331,6 +331,16 @@ class MainWindow(QMainWindow):
         self._right_panel.request_move_to.connect(
             lambda paths: self._copy_between_panels(paths, self._left_panel.get_current_path(), move=True))
 
+        self._left_panel.files_dropped.connect(
+            lambda paths: self._copy_between_panels(paths, self._left_panel.get_current_path()))
+        self._right_panel.files_dropped.connect(
+            lambda paths: self._copy_between_panels(paths, self._right_panel.get_current_path()))
+
+        self._left_panel.add_to_favorites.connect(self._add_to_favorites)
+        self._right_panel.add_to_favorites.connect(self._add_to_favorites)
+        self._tree_panel.remove_from_favorites.connect(self._remove_from_favorites)
+        self._right_tree_panel.remove_from_favorites.connect(self._remove_from_favorites)
+
         main_layout.addWidget(h_splitter)
 
     def _restore_settings(self):
@@ -349,6 +359,20 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self._status)
         self._status_label = QLabel("Prêt")
         self._status.addWidget(self._status_label)
+
+    def _add_to_favorites(self, path: str):
+        settings.add_to_history("favorites", path)
+        self._tree_panel.refresh_favorites()
+        self._right_tree_panel.refresh_favorites()
+        self._status_label.setText(f"Favori ajouté : {os.path.basename(path)}")
+
+    def _remove_from_favorites(self, path: str):
+        favs = settings.get_history("favorites")
+        favs = [f for f in favs if f != path]
+        settings.set_value("favorites", favs)
+        self._tree_panel.refresh_favorites()
+        self._right_tree_panel.refresh_favorites()
+        self._status_label.setText(f"Favori retiré : {os.path.basename(path)}")
 
     def _set_active(self, panel):
         self._active_panel = panel
