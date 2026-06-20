@@ -567,13 +567,60 @@ class MainWindow(QMainWindow):
             install_dir = os.path.dirname(_sys.executable)
         else:
             install_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        # Cas 1 : installateur Python (VBS présent)
         uninstall_vbs = os.path.join(install_dir, "uninstall.vbs")
-        if not os.path.isfile(uninstall_vbs):
-            QMessageBox.warning(self, "Désinstallation",
-                f"Désinstallateur introuvable :\n{uninstall_vbs}")
+        if os.path.isfile(uninstall_vbs):
+            r = QMessageBox.question(self, "Désinstaller Files Manager",
+                "Cette action lancera le désinstallateur et fermera Files Manager.")
+            if r == QMessageBox.StandardButton.Yes:
+                subprocess.Popen(["wscript.exe", uninstall_vbs])
+                QApplication.quit()
             return
-        r = QMessageBox.question(self, "Désinstaller Files Manager",
-            "Cette action lancera le désinstallateur et fermera Files Manager.")
-        if r == QMessageBox.StandardButton.Yes:
-            subprocess.Popen(["wscript.exe", uninstall_vbs])
-            QApplication.quit()
+
+        # Cas 2 : installateur MSI — chercher la commande dans le registre
+        uninstall_cmd = self._find_msi_uninstall()
+        if uninstall_cmd:
+            r = QMessageBox.question(self, "Désinstaller Files Manager",
+                "Cette action lancera le désinstallateur Windows et fermera Files Manager.")
+            if r == QMessageBox.StandardButton.Yes:
+                subprocess.Popen(uninstall_cmd, shell=True)
+                QApplication.quit()
+            return
+
+        # Cas 3 : aucun désinstallateur trouvé
+        QMessageBox.information(self, "Désinstallation",
+            "Ouvrez Paramètres Windows → Applications\n"
+            "et recherchez « Files Manager » pour désinstaller.")
+
+    def _find_msi_uninstall(self) -> str:
+        try:
+            import winreg
+            bases = [
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            ]
+            for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+                for base in bases:
+                    try:
+                        with winreg.OpenKey(hive, base) as root:
+                            i = 0
+                            while True:
+                                try:
+                                    sub_name = winreg.EnumKey(root, i)
+                                    with winreg.OpenKey(root, sub_name) as sub:
+                                        try:
+                                            name = winreg.QueryValueEx(sub, "DisplayName")[0]
+                                            if "Files Manager" in name:
+                                                cmd = winreg.QueryValueEx(sub, "UninstallString")[0]
+                                                return cmd
+                                        except OSError:
+                                            pass
+                                    i += 1
+                                except OSError:
+                                    break
+                    except OSError:
+                        pass
+        except Exception:
+            pass
+        return ""
