@@ -137,7 +137,7 @@ _HTML_BODY = r"""
   le glisser-déposer.
 </p>
 <div class="info">
-  <strong>Version :</strong> 1.0 &nbsp;|&nbsp;
+  <strong>Version :</strong> 1.0.0 &nbsp;|&nbsp;
   <strong>Technologie :</strong> Python 3 + PyQt6 &nbsp;|&nbsp;
   <strong>Plateformes :</strong> Windows (NTFS), Linux, macOS
 </div>

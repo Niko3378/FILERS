@@ -168,7 +168,7 @@ class Header(tk.Frame):
         super().__init__(parent, bg=C_HEADER)
         tk.Label(self, text="FILERS", fg="white", bg=C_HEADER,
                  font=("Segoe UI", 20, "bold")).pack(side="left", padx=18, pady=12)
-        tk.Label(self, text="Gestionnaire de fichiers",
+        tk.Label(self, text="Gestionnaire de fichiers  —  v1.0.0",
                  fg="#95a5a6", bg=C_HEADER,
                  font=("Segoe UI", 9)).pack(side="left")
 
@@ -230,7 +230,7 @@ class WelcomePage(tk.Frame):
         body = tk.Frame(self, bg=C_BG, padx=30, pady=18)
         body.pack(fill="both", expand=True)
 
-        tk.Label(body, text="Bienvenue dans l'installation de FILERS",
+        tk.Label(body, text="Bienvenue dans l'installation de FILERS  v1.0.0",
                  fg=C_TEXT, bg=C_BG,
                  font=("Segoe UI", 13, "bold")).pack(anchor="w", pady=(0, 6))
         tk.Label(body,
