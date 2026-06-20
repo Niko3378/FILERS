@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextBrowser,
     QPushButton, QLineEdit, QLabel, QSplitter, QTreeWidget,
-    QTreeWidgetItem, QAbstractItemView, QHeaderView
+    QTreeWidgetItem, QAbstractItemView, QHeaderView, QFileDialog
 )
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QFont, QKeySequence, QAction, QColor
+from PyQt6.QtPrintSupport import QPrinter
 
 
 SECTIONS = [
@@ -21,7 +22,7 @@ SECTIONS = [
     ("Éditeur de texte",      "editor"),
     ("  Coloration syntaxique","syntax"),
     ("  Recherche / Remplacement", "findreplace"),
-    ("Diff â€” Comparaison",    "diff"),
+    ("Diff — Comparaison",    "diff"),
     ("  Diff texte",          "difftexte"),
     ("  Comparaison dossiers","diffdir"),
     ("Aperçu de fichiers",    "apercu"),
@@ -73,7 +74,7 @@ HELP_HTML = r"""
 </head>
 <body>
 
-<h1 id="intro"><span class="anchor" id="a-intro"></span>Files Manager â€” Notice d'utilisation</h1>
+<h1 id="intro"><span class="anchor" id="a-intro"></span>Files Manager — Notice d'utilisation</h1>
 <p>
   <strong>Files Manager</strong> est un gestionnaire de fichiers double panneau pour Windows,
   avec support des partages réseau SMB, FTP et SFTP, un éditeur de texte intégré,
@@ -105,7 +106,7 @@ HELP_HTML = r"""
 </p>
 <ul>
   <li><strong>Cliquer</strong> sur un dossier navigue le panneau gauche vers ce dossier.</li>
-  <li><strong>Développer</strong> (flèche â–¶) charge les sous-dossiers.</li>
+  <li><strong>Développer</strong> (flèche ▶) charge les sous-dossiers.</li>
   <li>Les dossiers cachés apparaissent en grisé quand l'affichage des cachés est activé.</li>
 </ul>
 <div class="tip">Les lecteurs réseau mappés apparaissent automatiquement dans l'arborescence (ex : <code>Z:\</code>).</div>
@@ -121,8 +122,8 @@ HELP_HTML = r"""
 <table>
   <tr><th>Action</th><th>Méthode</th></tr>
   <tr><td>Entrer dans un dossier</td><td>Double-clic sur le dossier</td></tr>
-  <tr><td>Remonter d'un niveau</td><td>Bouton <kbd>â†‘</kbd> ou retour arrière</td></tr>
-  <tr><td>Historique avant / arrière</td><td>Boutons <kbd>â†</kbd> <kbd>â†’</kbd></td></tr>
+  <tr><td>Remonter d'un niveau</td><td>Bouton <kbd>↑</kbd> ou retour arrière</td></tr>
+  <tr><td>Historique avant / arrière</td><td>Boutons <kbd>←</kbd> <kbd>→</kbd></td></tr>
   <tr><td>Saisir un chemin direct</td><td>Écrire dans la barre de chemin + <kbd>Entrée</kbd></td></tr>
   <tr><td>Changer de lecteur</td><td>Menu déroulant des lecteurs (droite de la barre)</td></tr>
   <tr><td>Actualiser</td><td><kbd>F5</kbd> ou bouton "Actualiser"</td></tr>
@@ -140,47 +141,47 @@ HELP_HTML = r"""
 
 <h2>Sélection multiple</h2>
 <ul>
-  <li><kbd>Ctrl+Clic</kbd> â€” sélection individuelle</li>
-  <li><kbd>Shift+Clic</kbd> â€” sélection d'une plage</li>
-  <li><kbd>Ctrl+A</kbd> â€” tout sélectionner</li>
+  <li><kbd>Ctrl+Clic</kbd> — sélection individuelle</li>
+  <li><kbd>Shift+Clic</kbd> — sélection d'une plage</li>
+  <li><kbd>Ctrl+A</kbd> — tout sélectionner</li>
 </ul>
 
 <h2>Menu contextuel (clic droit)</h2>
 <ul>
-  <li><strong>Ouvrir</strong> â€” ouvre avec l'application associée Windows</li>
-  <li><strong>Ouvrir dans l'éditeur</strong> â€” ouvre dans l'éditeur Files Manager</li>
-  <li><strong>Comparer (diff)</strong> â€” si deux fichiers sont sélectionnés</li>
-  <li><strong>Nouveau dossier</strong> â€” crée un sous-dossier</li>
-  <li><strong>Renommer</strong> â€” renomme le fichier ou dossier</li>
-  <li><strong>Supprimer</strong> â€” supprime avec confirmation</li>
-  <li><strong>Droits / Permissions</strong> â€” affiche les droits détaillés</li>
-  <li><strong>Basculer caché</strong> â€” masque ou démasque l'élément</li>
+  <li><strong>Ouvrir</strong> — ouvre avec l'application associée Windows</li>
+  <li><strong>Ouvrir dans l'éditeur</strong> — ouvre dans l'éditeur Files Manager</li>
+  <li><strong>Comparer (diff)</strong> — si deux fichiers sont sélectionnés</li>
+  <li><strong>Nouveau dossier</strong> — crée un sous-dossier</li>
+  <li><strong>Renommer</strong> — renomme le fichier ou dossier</li>
+  <li><strong>Supprimer</strong> — supprime avec confirmation</li>
+  <li><strong>Droits / Permissions</strong> — affiche les droits détaillés</li>
+  <li><strong>Basculer caché</strong> — masque ou démasque l'élément</li>
 </ul>
 
 <!-- ================================================================== -->
 <h1 id="hidden"><span class="anchor" id="a-hidden"></span>Fichiers cachés</h1>
 <p>Par défaut, les fichiers et dossiers cachés ne sont pas affichés.</p>
 <ul>
-  <li>Activer / désactiver : menu <strong>Affichage â†’ Fichiers cachés</strong> ou <kbd>Ctrl+H</kbd></li>
+  <li>Activer / désactiver : menu <strong>Affichage → Fichiers cachés</strong> ou <kbd>Ctrl+H</kbd></li>
   <li>Sur Windows, les fichiers avec l'attribut <em>Hidden</em> sont masqués.</li>
   <li>Sur Linux/macOS, les fichiers dont le nom commence par <code>.</code> sont masqués.</li>
   <li>Les éléments cachés visibles apparaissent en <span style="color:#aaa">grisé</span>.</li>
 </ul>
 <div class="tip">
-  Utilisez le clic droit â†’ <strong>Basculer caché</strong> pour modifier l'attribut caché
+  Utilisez le clic droit → <strong>Basculer caché</strong> pour modifier l'attribut caché
   d'un fichier ou dossier depuis Files Manager.
 </div>
 
 <!-- ================================================================== -->
 <h1 id="rights"><span class="anchor" id="a-rights"></span>Droits et permissions</h1>
 <p>
-  Clic droit sur un fichier â†’ <strong>Droits / Permissions</strong> ouvre la fenêtre de détail.
+  Clic droit sur un fichier → <strong>Droits / Permissions</strong> ouvre la fenêtre de détail.
 </p>
 
 <h2>Informations affichées</h2>
 <table>
   <tr><th>Information</th><th>Description</th></tr>
-  <tr><td>Mode Unix</td><td>Ex : <code>-rwxr-xr--</code> â€” type + droits u/g/o</td></tr>
+  <tr><td>Mode Unix</td><td>Ex : <code>-rwxr-xr--</code> — type + droits u/g/o</td></tr>
   <tr><td>Propriétaire</td><td>Compte propriétaire (DOMAINE\Utilisateur sur Windows)</td></tr>
   <tr><td>Lecture / Écriture / Exécution</td><td>Accès effectif du processus courant</td></tr>
   <tr><td>ACL NTFS</td><td>Liste des entrées de contrôle d'accès Windows (Allow / Deny)</td></tr>
@@ -206,8 +207,8 @@ type</pre>
   Files Manager supporte trois protocoles réseau : <strong>SMB</strong> (partages Windows),
   <strong>FTP</strong> et <strong>SFTP</strong>.
 </p>
-<p>Ouvrir la fenêtre de connexion : menu <strong>Fichier â†’ Connexion réseauâ€¦</strong>
-  ou <kbd>Ctrl+N</kbd> ou bouton <strong>Réseauâ€¦</strong> dans la barre d'outils.</p>
+<p>Ouvrir la fenêtre de connexion : menu <strong>Fichier → Connexion réseau…</strong>
+  ou <kbd>Ctrl+N</kbd> ou bouton <strong>Réseau…</strong> dans la barre d'outils.</p>
 
 <h2 id="smb"><span class="anchor" id="a-smb"></span>SMB / Partages Windows</h2>
 <table>
@@ -240,11 +241,11 @@ type</pre>
   <tr><td>Utilisateur</td><td>Nom d'utilisateur SSH</td></tr>
   <tr><td>Mot de passe</td><td>Mot de passe (ou laisser vide si clé SSH)</td></tr>
   <tr><td>Port</td><td>Port SSH (défaut : 22)</td></tr>
-  <tr><td>Clé SSH</td><td>Chemin vers une clé privée (.pem, .ppkâ€¦) â€” optionnel</td></tr>
+  <tr><td>Clé SSH</td><td>Chemin vers une clé privée (.pem, .ppk…) — optionnel</td></tr>
 </table>
 <div class="tip">
   L'authentification par clé SSH est recommandée pour la sécurité.
-  Cliquez <strong>â€¦</strong> pour sélectionner votre fichier de clé.
+  Cliquez <strong>…</strong> pour sélectionner votre fichier de clé.
 </div>
 
 <!-- ================================================================== -->
@@ -257,9 +258,9 @@ type</pre>
 <h2>Ouverture d'un fichier</h2>
 <ul>
   <li>Double-clic sur un fichier texte dans les panneaux (ouverture automatique)</li>
-  <li>Clic droit â†’ <strong>Ouvrir dans l'éditeur</strong></li>
-  <li>Menu <strong>Fichier â†’ Ouvrir dans l'éditeurâ€¦</strong> ou <kbd>Ctrl+O</kbd></li>
-  <li>Bouton <strong>Ouvrirâ€¦</strong> dans la barre de l'éditeur</li>
+  <li>Clic droit → <strong>Ouvrir dans l'éditeur</strong></li>
+  <li>Menu <strong>Fichier → Ouvrir dans l'éditeur…</strong> ou <kbd>Ctrl+O</kbd></li>
+  <li>Bouton <strong>Ouvrir…</strong> dans la barre de l'éditeur</li>
 </ul>
 <div class="info">
   Si un fichier est déjà ouvert dans l'éditeur, Files Manager y navigue directement
@@ -273,7 +274,7 @@ type</pre>
   <tr><td>Fermer l'onglet courant</td><td><kbd>Ctrl+W</kbd></td></tr>
   <tr><td>Déplacer un onglet</td><td>Glisser-déposer l'onglet</td></tr>
   <tr><td>Enregistrer</td><td><kbd>Ctrl+S</kbd></td></tr>
-  <tr><td>Enregistrer sousâ€¦</td><td>Bouton "Enreg. sousâ€¦"</td></tr>
+  <tr><td>Enregistrer sous…</td><td>Bouton "Enreg. sous…"</td></tr>
 </table>
 <div class="warn">
   Un onglet modifié non sauvegardé affiche un <strong>*</strong> avant son nom.
@@ -295,7 +296,7 @@ type</pre>
 <p>Ouvrir la barre de recherche : <kbd>Ctrl+F</kbd></p>
 <table>
   <tr><th>Option</th><th>Description</th></tr>
-  <tr><td><strong>â—€ â–¶</strong></td><td>Résultat précédent / suivant</td></tr>
+  <tr><td><strong>◀ ▶</strong></td><td>Résultat précédent / suivant</td></tr>
   <tr><td><strong>Casse</strong></td><td>Recherche sensible à la casse</td></tr>
   <tr><td><strong>Regex</strong></td><td>Expression régulière (syntaxe Python/PCRE)</td></tr>
   <tr><td><strong>Remplacer</strong></td><td>Remplace l'occurrence sélectionnée</td></tr>
@@ -306,7 +307,7 @@ type</pre>
 </div>
 
 <!-- ================================================================== -->
-<h1 id="diff"><span class="anchor" id="a-diff"></span>Diff â€” Comparaison</h1>
+<h1 id="diff"><span class="anchor" id="a-diff"></span>Diff — Comparaison</h1>
 
 <h2 id="difftexte"><span class="anchor" id="a-difftexte"></span>Diff texte (côte à côte)</h2>
 <p>
@@ -317,7 +318,7 @@ type</pre>
 <ul>
   <li>Sélectionner un fichier dans le panneau gauche + un dans le panneau droit,
     puis <kbd>Ctrl+D</kbd></li>
-  <li>Sélectionner deux fichiers dans le même panneau â†’ clic droit â†’ <strong>Comparer (diff)</strong></li>
+  <li>Sélectionner deux fichiers dans le même panneau → clic droit → <strong>Comparer (diff)</strong></li>
   <li>Double-clic sur un fichier "Modifié" dans la comparaison de dossiers</li>
 </ul>
 <h3>Code couleur</h3>
@@ -379,7 +380,7 @@ type</pre>
     <td><code>.png</code> <code>.jpg</code> <code>.jpeg</code> <code>.bmp</code>
         <code>.gif</code> <code>.webp</code> <code>.tif</code> <code>.svg</code>
         <code>.ico</code> et autres</td>
-    <td>Zoom +/âˆ’ · Ajuster à la fenêtre · <kbd>Ctrl</kbd>+Molette · Dimensions affichées</td>
+    <td>Zoom +/− · Ajuster à la fenêtre · <kbd>Ctrl</kbd>+Molette · Dimensions affichées</td>
   </tr>
   <tr>
     <td><strong>PDF</strong></td>
@@ -389,7 +390,7 @@ type</pre>
   <tr>
     <td>Autres fichiers</td>
     <td>Tous</td>
-    <td>Placeholder â€” pas d'aperçu</td>
+    <td>Placeholder — pas d'aperçu</td>
   </tr>
 </table>
 
@@ -398,7 +399,7 @@ type</pre>
   <tr><th>Action</th><th>Méthode</th></tr>
   <tr><td>Afficher un aperçu</td><td>Cliquer sur une image ou un PDF dans les panneaux</td></tr>
   <tr><td>Zoom avant</td><td>Bouton <strong>+</strong> ou <kbd>Ctrl</kbd>+Molette haut</td></tr>
-  <tr><td>Zoom arrière</td><td>Bouton <strong>âˆ’</strong> ou <kbd>Ctrl</kbd>+Molette bas</td></tr>
+  <tr><td>Zoom arrière</td><td>Bouton <strong>−</strong> ou <kbd>Ctrl</kbd>+Molette bas</td></tr>
   <tr><td>Ajuster à la fenêtre</td><td>Bouton <strong>Ajuster</strong></td></tr>
   <tr><td>Faire défiler</td><td>Molette ou barres de défilement</td></tr>
 </table>
@@ -406,11 +407,11 @@ type</pre>
 <h2>Utilisation de l'aperçu PDF</h2>
 <table>
   <tr><th>Action</th><th>Méthode</th></tr>
-  <tr><td>Page précédente</td><td>Bouton <strong>â—€</strong></td></tr>
-  <tr><td>Page suivante</td><td>Bouton <strong>â–¶</strong></td></tr>
+  <tr><td>Page précédente</td><td>Bouton <strong>◀</strong></td></tr>
+  <tr><td>Page suivante</td><td>Bouton <strong>▶</strong></td></tr>
   <tr><td>Aller à une page</td><td>Saisir le numéro dans le champ de page</td></tr>
   <tr><td>Augmenter la résolution</td><td>Bouton <strong>+</strong> (augmente les dpi)</td></tr>
-  <tr><td>Diminuer la résolution</td><td>Bouton <strong>âˆ’</strong> (diminue les dpi)</td></tr>
+  <tr><td>Diminuer la résolution</td><td>Bouton <strong>−</strong> (diminue les dpi)</td></tr>
 </table>
 
 <div class="tip">
@@ -432,12 +433,12 @@ type</pre>
   Files Manager contourne cette limite de deux façons complémentaires :
 </p>
 <ul>
-  <li><strong>Préfixe <code>\\?\</code></strong> â€” ajouté automatiquement à tout chemin
+  <li><strong>Préfixe <code>\\?\</code></strong> — ajouté automatiquement à tout chemin
     dépassant 248 caractères pour toutes les opérations internes (lecture, écriture,
     copie, déplacement, suppression).</li>
-  <li><strong>Activation native via le registre</strong> â€” la clé
+  <li><strong>Activation native via le registre</strong> — la clé
     <code>LongPathsEnabled</code> supprime la limite pour tout le système.
-    Menu <strong>Outils â†’ Chemins longs Windowsâ€¦</strong></li>
+    Menu <strong>Outils → Chemins longs Windows…</strong></li>
 </ul>
 
 <h2>Indicateurs visuels</h2>
@@ -451,7 +452,7 @@ type</pre>
       <td>Affiche le chemin complet et le nombre de caractères</td></tr>
 </table>
 
-<h2>Dialogue Chemins longs (Outils â†’ Chemins longs Windowsâ€¦)</h2>
+<h2>Dialogue Chemins longs (Outils → Chemins longs Windows…)</h2>
 <table>
   <tr><th>Information</th><th>Description</th></tr>
   <tr><td>Plateforme</td><td>Version Windows détectée</td></tr>
@@ -467,7 +468,7 @@ type</pre>
 <!-- ================================================================== -->
 <h2 id="longpath-test"><span class="anchor" id="a-longpath-test"></span>Tester les chemins longs</h2>
 
-<h3>Test 1 â€” Créer une structure longue</h3>
+<h3>Test 1 — Créer une structure longue</h3>
 <p>Dans un terminal Python (depuis le dossier <code>Files Manager/</code>) :</p>
 <pre>python -c "
 import sys, os
@@ -485,15 +486,15 @@ fpath = os.path.join(deep, 'fichier_long.txt')
 with lp.open_file(fpath, 'w', encoding='utf-8') as f:
     f.write('Test chemin long OK\n')
 
-print('Cree :', lp.is_long(fpath), 'â€” Prefixe :', lp.normalize(fpath)[:12])
+print('Cree :', lp.is_long(fpath), '— Prefixe :', lp.normalize(fpath)[:12])
 print('Abrege :', lp.abbreviate(fpath, 60))
 "</pre>
 <p>Résultat attendu :</p>
 <pre>Longueur : 312 caracteres
-Cree : True â€” Prefixe : \\?\C:\Temp
+Cree : True — Prefixe : \\?\C:\Temp
 Abrege : C:/.../fichier_long.txt</pre>
 
-<h3>Test 2 â€” Dans l'interface Files Manager</h3>
+<h3>Test 2 — Dans l'interface Files Manager</h3>
 <ol>
   <li>Naviguez vers <code>C:\Temp\TEST_LONG</code> dans le panneau gauche</li>
   <li>Descendez dans les sous-dossiers jusqu'au niveau 4-5</li>
@@ -502,7 +503,7 @@ Abrege : C:/.../fichier_long.txt</pre>
   <li>Survolez-le : le <strong>tooltip</strong> affiche le chemin complet et le nombre de caractères</li>
 </ol>
 
-<h3>Test 3 â€” Opérations sur chemin long</h3>
+<h3>Test 3 — Opérations sur chemin long</h3>
 <p>Sélectionnez <code>fichier_long.txt</code>, puis testez depuis le menu contextuel :</p>
 <table>
   <tr><th>Opération</th><th>Résultat attendu</th></tr>
@@ -513,13 +514,13 @@ Abrege : C:/.../fichier_long.txt</pre>
   <tr><td>Copier vers l'autre panneau</td><td>Copie réussie (avec préfixe \\?\)</td></tr>
 </table>
 
-<h3>Test 4 â€” Activer le support natif (optionnel)</h3>
+<h3>Test 4 — Activer le support natif (optionnel)</h3>
 <ol>
   <li>Relancez Files Manager <strong>en tant qu'administrateur</strong></li>
-  <li>Menu <strong>Outils â†’ Chemins longs Windowsâ€¦</strong></li>
+  <li>Menu <strong>Outils → Chemins longs Windows…</strong></li>
   <li>Cliquez <strong>Activer LongPathsEnabled dans le registre</strong></li>
   <li>Déconnectez-vous puis reconnectez-vous (ou redémarrez)</li>
-  <li>Ouvrez à nouveau le dialogue : <em>LongPathsEnabled : âœ” Activé</em></li>
+  <li>Ouvrez à nouveau le dialogue : <em>LongPathsEnabled : ✔ Activé</em></li>
 </ol>
 
 <h3>Nettoyage</h3>
@@ -591,7 +592,7 @@ dépendances sont installées :</p>
 
 <h2>L'encodage d'un fichier est incorrect</h2>
 <p>Files Manager détecte automatiquement l'encodage via <code>chardet</code>.
-Pour les fichiers avec encodage inhabituel (EBCDIC, UTF-32â€¦),
+Pour les fichiers avec encodage inhabituel (EBCDIC, UTF-32…),
 la détection peut être imprécise. Sauvegardez une copie avant modification.</p>
 
 <h2>La comparaison de dossiers est lente</h2>
@@ -655,10 +656,14 @@ class HelpViewer(QWidget):
         search_bar = QHBoxLayout()
         search_bar.setContentsMargins(6, 4, 6, 4)
         self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText("Rechercher dans la noticeâ€¦")
+        self._search_edit.setPlaceholderText("Rechercher dans la notice…")
         self._search_edit.textChanged.connect(self._do_search)
-        search_bar.addWidget(QLabel("ðŸ”"))
+        search_bar.addWidget(QLabel("🔍"))
         search_bar.addWidget(self._search_edit)
+        pdf_btn = QPushButton("⬇ Exporter PDF")
+        pdf_btn.setFixedWidth(130)
+        pdf_btn.clicked.connect(self._export_pdf)
+        search_bar.addWidget(pdf_btn)
 
         search_widget = QWidget()
         search_widget.setLayout(search_bar)
@@ -680,6 +685,19 @@ class HelpViewer(QWidget):
         anchor = item.data(0, Qt.ItemDataRole.UserRole)
         if anchor:
             self._browser.scrollToAnchor(f"a-{anchor}")
+
+    def _export_pdf(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter la notice en PDF",
+            "Files_Manager_Notice.pdf",
+            "PDF (*.pdf)"
+        )
+        if not path:
+            return
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(path)
+        self._browser.print(printer)
 
     def _do_search(self, text: str):
         if not text:
