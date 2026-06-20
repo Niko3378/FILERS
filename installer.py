@@ -85,7 +85,7 @@ def create_uninstall_vbs(install_dir: str) -> str:
         ' vbYesNo + vbQuestion + vbDefaultButton2, "FILERS - Desinstallation")',
         'If answer = vbYes Then',
         '    On Error Resume Next',
-        '    WshShell.Run "taskkill /f /im FILERS.exe", 0, True',
+        '    WshShell.Run "taskkill /f /im ""Files Manager.exe""", 0, True',
         '    WshShell.Run "reg delete ""HKCU\\' + reg_key + '"" /f", 0, True',
         '    Set fso = CreateObject("Scripting.FileSystemObject")',
         f'    If fso.FileExists("{lnk}") Then fso.DeleteFile "{lnk}"',
