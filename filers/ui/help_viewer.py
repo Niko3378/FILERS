@@ -82,45 +82,45 @@ _CSS_SCREEN = """
 """
 
 # ---------------------------------------------------------------------------
-# CSS — impression PDF (polices plus petites, sans couleurs de fond superflues)
+# CSS — impression PDF (unités en pt, indépendantes de la résolution écran)
 # ---------------------------------------------------------------------------
 _CSS_PRINT = """
-  body  { font-family: Arial, sans-serif; font-size: 11px;
-          color: #000; margin: 0; padding: 0 14px 16px 14px; background: #fff; }
-  h1    { font-size: 15px; color: #000; border-bottom: 2px solid #000;
-          padding-bottom: 4px; margin-top: 18px; page-break-after: avoid; }
-  h2    { font-size: 13px; color: #000; border-left: 3px solid #555;
-          padding-left: 8px; margin-top: 14px; page-break-after: avoid; }
-  h3    { font-size: 11px; color: #000; font-weight: bold; margin-top: 10px;
+  body  { font-family: Arial, sans-serif; font-size: 10pt;
+          color: #000; margin: 0; padding: 0 10pt 16pt 10pt; background: #fff; }
+  h1    { font-size: 14pt; color: #000; border-bottom: 2px solid #000;
+          padding-bottom: 4pt; margin-top: 16pt; page-break-after: avoid; }
+  h2    { font-size: 12pt; color: #000; border-left: 3px solid #555;
+          padding-left: 8pt; margin-top: 12pt; page-break-after: avoid; }
+  h3    { font-size: 10pt; color: #000; font-weight: bold; margin-top: 8pt;
           page-break-after: avoid; }
-  p     { line-height: 1.5; margin: 5px 0; }
+  p     { line-height: 1.5; margin: 5pt 0; }
   code  { background: #f0f0f0; border: 1px solid #ccc;
-          padding: 1px 4px; font-family: Courier New, monospace; font-size: 10px; }
+          padding: 1pt 4pt; font-family: Courier New, monospace; font-size: 9pt; }
   pre   { background: #f0f0f0; border: 1px solid #ccc;
-          padding: 8px 12px; font-size: 10px;
+          padding: 7pt 10pt; font-size: 9pt;
           font-family: Courier New, monospace; line-height: 1.4;
           page-break-inside: avoid; white-space: pre-wrap; }
-  table { border-collapse: collapse; width: 100%; margin: 7px 0;
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0;
           page-break-inside: avoid; }
-  th    { background: #ddd; color: #000; padding: 5px 8px; text-align: left;
-          border: 1px solid #999; font-size: 10px; }
-  td    { padding: 4px 8px; border: 1px solid #ccc; font-size: 10px; }
+  th    { background: #ddd; color: #000; padding: 4pt 7pt; text-align: left;
+          border: 1px solid #999; font-size: 9pt; }
+  td    { padding: 3pt 7pt; border: 1px solid #ccc; font-size: 9pt; }
   tr:nth-child(even) td { background: #f5f5f5; }
-  .tip  { border-left: 3px solid #555; padding: 5px 10px; margin: 6px 0; }
-  .warn { border-left: 3px solid #999; padding: 5px 10px; margin: 6px 0;
+  .tip  { border-left: 3px solid #555; padding: 5pt 10pt; margin: 6pt 0; }
+  .warn { border-left: 3px solid #999; padding: 5pt 10pt; margin: 6pt 0;
           font-style: italic; }
-  .info { border-left: 3px solid #333; padding: 5px 10px; margin: 6px 0; }
-  ul    { padding-left: 16px; line-height: 1.5; }
-  ol    { padding-left: 16px; line-height: 1.5; }
-  li    { margin: 1px 0; }
+  .info { border-left: 3px solid #333; padding: 5pt 10pt; margin: 6pt 0; }
+  ul    { padding-left: 16pt; line-height: 1.5; }
+  ol    { padding-left: 16pt; line-height: 1.5; }
+  li    { margin: 1pt 0; }
   a     { color: #000; text-decoration: none; }
   .anchor { display: none; }
   kbd   { background: #eee; border: 1px solid #aaa; border-radius: 2px;
-          padding: 1px 4px; font-family: Courier New, monospace; font-size: 10px; }
-  .badge { display: inline; font-size: 10px; font-weight: bold; }
-  .diagram { font-family: Courier New, monospace; font-size: 10px;
+          padding: 1pt 4pt; font-family: Courier New, monospace; font-size: 9pt; }
+  .badge { display: inline; font-size: 9pt; font-weight: bold; }
+  .diagram { font-family: Courier New, monospace; font-size: 9pt;
              background: #f5f5f5; border: 1px solid #ccc;
-             padding: 6px 10px; line-height: 1.3; white-space: pre;
+             padding: 6pt 10pt; line-height: 1.35; white-space: pre;
              page-break-inside: avoid; }
 """
 
@@ -1037,9 +1037,12 @@ class HelpViewer(QWidget):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(path)
-        tmp = QTextBrowser()
-        tmp.setHtml(_make_html(_CSS_PRINT))
-        tmp.print(printer)
+        # Utilise le browser visible (taille réelle connue de Qt) avec le CSS
+        # d'impression — un browser jamais affiché aurait une largeur nulle et
+        # tout le contenu serait compressé.
+        self._browser.setHtml(_make_html(_CSS_PRINT))
+        self._browser.print(printer)
+        self._browser.setHtml(HELP_HTML)
 
     def _do_search(self, text: str):
         if not text:
