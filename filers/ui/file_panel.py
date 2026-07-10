@@ -80,8 +80,10 @@ class FileTree(QTreeWidget):
 
 
 class SearchWorker(QThread):
-    found = pyqtSignal(list)
+    partial = pyqtSignal(list)
+    found = pyqtSignal(int)
     error = pyqtSignal(str)
+    BATCH_SIZE = 50
 
     def __init__(self, provider, root: str, pattern: str):
         super().__init__()
@@ -89,20 +91,28 @@ class SearchWorker(QThread):
         self._root = root
         self._pattern = pattern.lower()
         self._cancelled = False
+        self._batch = []
+        self._total = 0
 
     def cancel(self):
         self._cancelled = True
 
+    def _flush(self):
+        if self._batch:
+            self.partial.emit(self._batch)
+            self._total += len(self._batch)
+            self._batch = []
+
     def run(self):
         try:
-            results = []
-            self._walk(self._root, results)
+            self._walk(self._root)
             if not self._cancelled:
-                self.found.emit(results)
+                self._flush()
+                self.found.emit(self._total)
         except Exception as e:
             self.error.emit(str(e))
 
-    def _walk(self, path: str, results: list):
+    def _walk(self, path: str):
         if self._cancelled:
             return
         try:
@@ -110,9 +120,11 @@ class SearchWorker(QThread):
                 if self._cancelled:
                     return
                 if self._pattern in entry.name.lower():
-                    results.append(entry)
+                    self._batch.append(entry)
+                    if len(self._batch) >= self.BATCH_SIZE:
+                        self._flush()
                 if entry.is_dir:
-                    self._walk(entry.path, results)
+                    self._walk(entry.path)
         except Exception:
             pass
 
@@ -434,17 +446,27 @@ class FilePanel(QWidget):
         self._search_banner.setText(f"Recherche «{text}» en cours…")
         self._search_banner.show()
         self._back_search_btn.show()
+        self._tree.clear()
+        self._status_label.setText("Recherche en cours…")
         self._search_worker = SearchWorker(self._provider, self._current_path, text)
+        self._search_worker.partial.connect(self._on_search_partial)
         self._search_worker.found.connect(self._on_search_results)
         self._search_worker.error.connect(self._on_load_error)
         self._search_worker.start()
 
-    def _on_search_results(self, entries: list):
-        self._populate(entries)
+    @pyqtSlot(list)
+    def _on_search_partial(self, entries: list):
+        for entry in entries:
+            self._tree.addTopLevelItem(self._make_item(entry))
+        self._status_label.setText(f"{self._tree.topLevelItemCount()} élément(s)…")
+
+    @pyqtSlot(int)
+    def _on_search_results(self, total: int):
         text = self._filter_edit.text().strip()
         self._search_banner.setText(
-            f"Résultats pour «{text}» — {len(entries)} élément(s)  |  "
+            f"Résultats pour «{text}» — {total} élément(s)  |  "
             f"Racine : {self._current_path}")
+        self._status_label.setText(f"{total} élément(s)")
 
     def _on_search_back(self, clear_filter: bool = True):
         if self._search_worker and self._search_worker.isRunning():
