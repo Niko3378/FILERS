@@ -6,17 +6,40 @@ Gestionnaire de fichiers double panneau pour Windows, développé en Python + Py
 
 ## Fonctionnalités
 
+### Navigation et panneaux
 - **Double panneau** avec navigation indépendante et historique (←/→/↑)
 - **Arborescence** de fichiers avec chargement lazy
-- **Fichiers cachés** Windows (toggle Ctrl+H)
-- **Droits NTFS** et ACL (lecture + modification)
-- **Connexions réseau** SMB/FTP/SFTP avec historique des hôtes
+- **Favoris** (★) : épingler des dossiers fréquents en haut de l'arborescence
+- **Fichiers cachés** Windows (toggle `Ctrl+H`)
+- **Indicateurs visuels** pour les chemins longs (> 248 caractères)
+
+### Gestion de fichiers
+- **Copie** (`F5`) et **déplacement** (`F6`) entre les deux panneaux
+- **Glisser-déposer** entre panneaux et depuis l'Explorateur Windows
+- **Corbeille** Windows (`Suppr`) et suppression définitive
+- **Filtre temps réel** + **recherche récursive** dans les sous-dossiers (`Ctrl+F`)
+- **Double-clic** : texte → éditeur, images/PDF → aperçu, autres → app Windows associée
+- **Menu contextuel** complet : ouvrir, renommer, droits, favoris, caché…
+
+### Connexions réseau
+- **SMB** (partages Windows), **FTP**, **SFTP** avec historique des hôtes
+
+### Outils intégrés
 - **Diff texte** côte à côte avec coloration et scroll synchronisé
-- **Comparaison de dossiers** (MD5) avec worker thread
-- **Éditeur de texte** multi-onglets avec coloration syntaxique
-- **Aperçu** de fichiers (images, PDF, texte)
+- **Comparaison de dossiers** par empreinte MD5 (worker thread)
+- **Éditeur de texte** multi-onglets avec coloration syntaxique (Python, JS, HTML, CSS…)
+- **Aperçu** d'images (zoom, ajuster) et de PDF (page par page, via PyMuPDF)
+- **Droits NTFS** et ACL détaillées
 - **Chemins longs** Windows (> 260 caractères) avec préfixe `\\?\`
-- **Persistance** des préférences : géométrie, derniers chemins, connexions (via `%APPDATA%\Files Manager\settings.json`)
+
+### Notice d'utilisation
+- Manuel intégré accessible via `F1` avec sommaire cliquable et recherche
+- Export PDF sans interruption de l'interface (via `QTextDocument`)
+
+### Qualité / UX
+- Recherche récursive avec résultats progressifs (lots de 50, pas de blocage UI)
+- Persistance : géométrie, derniers chemins, favoris, connexions (`%APPDATA%\Files Manager\settings.json`)
+- Dialog de don : une fois par jour au plus, après 10 minutes d'utilisation
 
 ## Prérequis
 
@@ -57,16 +80,16 @@ filers/
 │   └── settings.py          # Persistance des préférences (JSON)
 └── ui/
     ├── main_window.py        # Fenêtre principale
-    ├── file_panel.py         # Panneau fichiers
+    ├── file_panel.py         # Panneau fichiers (filtre, recherche, copie, favoris)
     ├── tree_panel.py         # Arborescence
-    ├── diff_viewer.py        # Visionneur diff
-    ├── folder_compare.py     # Comparaison dossiers
+    ├── diff_viewer.py        # Visionneur diff texte
+    ├── folder_compare.py     # Comparaison dossiers MD5
     ├── text_editor.py        # Éditeur multi-onglets
-    ├── preview_panel.py      # Aperçu fichiers
+    ├── preview_panel.py      # Aperçu images et PDF
     ├── connect_dialog.py     # Dialog connexion réseau
     ├── rights_dialog.py      # Dialog droits NTFS
     ├── long_path_dialog.py   # Dialog chemins longs
-    ├── help_viewer.py        # Notice d'utilisation
+    ├── help_viewer.py        # Notice d'utilisation + export PDF
     └── donation_dialog.py    # Dialog don
 ```
 
@@ -74,14 +97,19 @@ filers/
 
 | Raccourci | Action |
 |---|---|
+| `F1` | Notice d'utilisation |
+| `F5` | Copier la sélection vers l'autre panneau |
+| `F6` | Déplacer la sélection vers l'autre panneau |
+| `Suppr` | Envoyer à la Corbeille Windows |
 | `Ctrl+H` | Afficher/masquer les fichiers cachés |
+| `Ctrl+F` | Ouvrir la barre de filtre/recherche |
 | `Ctrl+N` | Connexion réseau |
-| `Ctrl+D` | Comparer les fichiers sélectionnés |
+| `Ctrl+D` | Comparer les fichiers sélectionnés (diff) |
 | `Ctrl+T` | Nouvel onglet éditeur |
 | `Ctrl+O` | Ouvrir un fichier dans l'éditeur |
 | `Ctrl+S` | Enregistrer (éditeur) |
-| `F1` | Notice d'utilisation |
-| `F5` | Actualiser |
+| `Ctrl+W` | Fermer l'onglet éditeur |
+| `Ctrl+Q` | Quitter |
 
 ## Build (exécutable Windows)
 
@@ -89,4 +117,6 @@ filers/
 build.bat
 ```
 
-Génère un exécutable standalone via PyInstaller dans `dist/`.
+Génère `dist/Files Manager.exe` (standalone via PyInstaller) puis `dist/install.exe` (installateur graphique).
+
+Pour générer le MSI, utiliser WiX Toolset avec `FILERS.wxs`.
