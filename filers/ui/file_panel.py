@@ -151,6 +151,7 @@ class FilePanel(QWidget):
     selection_changed = pyqtSignal(list)
     request_diff = pyqtSignal(str, str)
     request_open_editor = pyqtSignal(str)
+    request_preview = pyqtSignal(str)
     file_selected = pyqtSignal(str)
     request_copy_to = pyqtSignal(list)
     request_move_to = pyqtSignal(list)
@@ -371,18 +372,27 @@ class FilePanel(QWidget):
             return
         if entry.is_dir:
             self._navigate(entry.path)
+            return
+        ext = os.path.splitext(entry.name)[1].lower()
+        text_exts = {
+            ".txt", ".py", ".pyw", ".js", ".mjs", ".ts", ".jsx", ".tsx",
+            ".html", ".htm", ".xml", ".svg", ".css", ".scss", ".less",
+            ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+            ".md", ".rst", ".log", ".sh", ".bat", ".cmd", ".ps1",
+            ".c", ".h", ".cpp", ".hpp", ".cs", ".java", ".go", ".rs",
+            ".php", ".rb", ".pl", ".sql", ".r", ".kt", ".swift",
+        }
+        preview_exts = {
+            ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp",
+            ".tif", ".tiff", ".ico", ".pbm", ".pgm", ".ppm",
+            ".xbm", ".xpm", ".pdf",
+        }
+        if ext in text_exts or not ext:
+            self.request_open_editor.emit(entry.path)
+        elif ext in preview_exts:
+            self.request_preview.emit(entry.path)
         else:
-            ext = os.path.splitext(entry.name)[1].lower()
-            text_exts = {
-                ".txt", ".py", ".pyw", ".js", ".mjs", ".ts", ".jsx", ".tsx",
-                ".html", ".htm", ".xml", ".svg", ".css", ".scss", ".less",
-                ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
-                ".md", ".rst", ".log", ".sh", ".bat", ".cmd", ".ps1",
-                ".c", ".h", ".cpp", ".hpp", ".cs", ".java", ".go", ".rs",
-                ".php", ".rb", ".pl", ".sql", ".r", ".kt", ".swift",
-            }
-            if ext in text_exts or not ext:
-                self.request_open_editor.emit(entry.path)
+            self._open_file(entry)
 
     def _on_selection_changed(self):
         items = self._tree.selectedItems()

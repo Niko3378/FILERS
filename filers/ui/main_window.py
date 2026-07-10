@@ -317,6 +317,8 @@ class MainWindow(QMainWindow):
         self._right_tree_panel.navigate.connect(self._right_panel.navigate_to)
         self._left_panel.request_open_editor.connect(self._open_in_editor)
         self._right_panel.request_open_editor.connect(self._open_in_editor)
+        self._left_panel.request_preview.connect(self._open_in_preview)
+        self._right_panel.request_preview.connect(self._open_in_preview)
         self._left_panel.file_selected.connect(self._preview_panel.load_file)
         self._right_panel.file_selected.connect(self._preview_panel.load_file)
 
@@ -519,6 +521,10 @@ class MainWindow(QMainWindow):
     def _open_in_editor(self, path: str):
         self._text_editor.open_file(path)
         self._panels_tabs.setCurrentWidget(self._text_editor)
+
+    def _open_in_preview(self, path: str):
+        self._preview_panel.load_file(path)
+        self._panels_tabs.setCurrentWidget(self._preview_panel)
 
     def _open_in_editor_dialog(self):
         self._text_editor.open_file_dialog()
