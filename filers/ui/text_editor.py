@@ -6,10 +6,10 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QFrame, QSizePolicy, QStatusBar,
     QTabWidget, QSplitter, QScrollArea
 )
-from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal, QRegularExpression
+from PyQt6.QtCore import Qt, QRect, QSize, pyqtSignal, QRegularExpression, QTimer
 from PyQt6.QtGui import (
     QColor, QPainter, QFont, QTextCharFormat, QSyntaxHighlighter,
-    QTextCursor, QKeySequence, QAction, QPalette, QTextOption,
+    QTextCursor, QKeySequence, QShortcut, QAction, QPalette, QTextOption,
     QTextDocument
 )
 
@@ -222,6 +222,10 @@ class FindBar(QWidget):
     def __init__(self, editor: CodeEditor, parent=None):
         super().__init__(parent)
         self._editor = editor
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)
+        self._search_timer.timeout.connect(self._do_find)
         self._build_ui()
 
     def _build_ui(self):
@@ -232,8 +236,9 @@ class FindBar(QWidget):
         self._find_edit = QLineEdit()
         self._find_edit.setPlaceholderText("Rechercher…")
         self._find_edit.setFixedWidth(200)
-        self._find_edit.textChanged.connect(self._do_find)
+        self._find_edit.textChanged.connect(self._search_timer.start)
         self._find_edit.returnPressed.connect(self._find_next)
+        QShortcut(QKeySequence("Escape"), self._find_edit, self.close_bar)
 
         self._replace_edit = QLineEdit()
         self._replace_edit.setPlaceholderText("Remplacer par…")
@@ -548,7 +553,7 @@ class TextEditor(QWidget):
 
         toolbar.addSeparator()
 
-        act_find = QAction("Rechercher  Ctrl+F", self)
+        act_find = QAction("Rechercher", self)
         act_find.setShortcut(QKeySequence("Ctrl+F"))
         act_find.triggered.connect(self.show_find)
         toolbar.addAction(act_find)
