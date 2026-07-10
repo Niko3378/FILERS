@@ -146,10 +146,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_statusbar()
         self._restore_settings()
-        QTimer.singleShot(1000, self._show_donation)
-        self._don_timer = QTimer(self)
-        self._don_timer.timeout.connect(self._show_donation)
-        self._don_timer.start(5 * 60 * 1000)
+        QTimer.singleShot(10 * 60 * 1000, self._maybe_show_donation)
 
     def _build_menu(self):
         mb = self.menuBar()
@@ -543,6 +540,14 @@ class MainWindow(QMainWindow):
             "• Diff texte et comparaison dossiers<br>"
             "• Éditeur de texte multi-onglets avec coloration syntaxique<br>"
         )
+
+    def _maybe_show_donation(self):
+        from datetime import date
+        today = str(date.today())
+        if settings.get("last_donation_shown") == today:
+            return
+        settings.set_value("last_donation_shown", today)
+        self._show_donation()
 
     def _show_donation(self):
         DonationDialog(self).exec()

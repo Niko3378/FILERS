@@ -124,7 +124,7 @@ class DonationDialog(QDialog):
         """)
         later.clicked.connect(self.reject)
 
-        note = QLabel("Réapparaît dans 5 min")
+        note = QLabel("Une fois par jour au plus")
         note.setStyleSheet("color: #bdc3c7; font: 8px 'Segoe UI'; background: transparent;")
         note.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         note.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
