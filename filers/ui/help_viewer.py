@@ -3,8 +3,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QLabel, QSplitter, QTreeWidget,
     QTreeWidgetItem, QAbstractItemView, QFileDialog
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt, QSizeF
+from PyQt6.QtGui import QColor, QTextDocument
 from PyQt6.QtPrintSupport import QPrinter
 
 
@@ -1037,12 +1037,11 @@ class HelpViewer(QWidget):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
         printer.setOutputFileName(path)
-        # Utilise le browser visible (taille réelle connue de Qt) avec le CSS
-        # d'impression — un browser jamais affiché aurait une largeur nulle et
-        # tout le contenu serait compressé.
-        self._browser.setHtml(_make_html(_CSS_PRINT))
-        self._browser.print(printer)
-        self._browser.setHtml(HELP_HTML)
+        doc = QTextDocument()
+        doc.setHtml(_make_html(_CSS_PRINT))
+        page_rect = printer.pageRect(QPrinter.Unit.Point)
+        doc.setPageSize(QSizeF(page_rect.width(), page_rect.height()))
+        doc.print(printer)
 
     def _do_search(self, text: str):
         if not text:
