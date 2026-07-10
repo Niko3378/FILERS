@@ -437,6 +437,8 @@ class MainWindow(QMainWindow):
         def on_finished(errors):
             dlg.setValue(100)
             dlg.close()
+            if worker in self._copy_workers:
+                self._copy_workers.remove(worker)
             self._left_panel.refresh()
             self._right_panel.refresh()
             if errors:
@@ -465,6 +467,7 @@ class MainWindow(QMainWindow):
             worker = ConnectWorker(data)
             worker.success.connect(self._on_connected)
             worker.error.connect(self._on_connect_error)
+            worker.finished.connect(lambda w=worker: self._connect_workers.remove(w) if w in self._connect_workers else None)
             self._connect_workers.append(worker)
             worker.start()
 

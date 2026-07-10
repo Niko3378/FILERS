@@ -1049,5 +1049,4 @@ class HelpViewer(QWidget):
             return
         self._browser.find("")
         self._browser.setHtml(HELP_HTML)
-        if text:
-            self._browser.find(text)
+        self._browser.find(text)
