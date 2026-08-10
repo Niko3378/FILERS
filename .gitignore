@@ -4,5 +4,6 @@ __pycache__/
 build/
 dist/
 .wix/
+*.wixpdb
 .claude/
 TEST_LONG/
