@@ -504,15 +504,22 @@ class FilePanel(QWidget):
         names = ", ".join(e.name for e in entries[:3])
         if len(entries) > 3:
             names += f" (+{len(entries)-3})"
+        is_local = isinstance(self._provider, LocalProvider)
+        title = "Envoyer à la corbeille" if is_local else "Supprimer"
         reply = QMessageBox.question(
-            self, "Envoyer à la corbeille",
-            f"Envoyer à la corbeille : {names} ?",
+            self, title,
+            f"{title} : {names} ?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
             for e in entries:
                 try:
-                    self._local.delete_to_trash(e.path)
+                    if is_local:
+                        self._local.delete_to_trash(e.path)
+                    elif isinstance(self._provider, SMBProvider):
+                        self._provider.delete(e.path, is_dir=e.is_dir)
+                    else:
+                        self._provider.delete(e.path)
                 except Exception as ex:
                     QMessageBox.warning(self, "Erreur", f"{e.name} : {ex}")
             self._load_entries()
@@ -537,18 +544,22 @@ class FilePanel(QWidget):
         new_folder_act = menu.addAction("Nouveau dossier")
         new_folder_act.triggered.connect(self._new_folder)
 
+        is_local = isinstance(self._provider, LocalProvider)
+
         if entries:
             rename_act = menu.addAction("Renommer")
             rename_act.triggered.connect(lambda: self._rename(entries[0]))
-            trash_act = menu.addAction("Supprimer (Corbeille)")
+            trash_label = "Supprimer (Corbeille)" if is_local else "Supprimer"
+            trash_act = menu.addAction(trash_label)
             trash_act.triggered.connect(lambda: self._delete_to_trash(entries))
             del_act = menu.addAction("Supprimer définitivement")
             del_act.triggered.connect(lambda: self._delete(entries))
-            menu.addSeparator()
-            rights_act = menu.addAction("Droits / Permissions")
-            rights_act.triggered.connect(lambda: self._show_rights(entries[0]))
+            if is_local:
+                menu.addSeparator()
+                rights_act = menu.addAction("Droits / Permissions")
+                rights_act.triggered.connect(lambda: self._show_rights(entries[0]))
 
-        if entries:
+        if entries and is_local:
             toggle_hidden_act = menu.addAction("Basculer caché")
             toggle_hidden_act.triggered.connect(lambda: self._toggle_hidden(entries[0]))
 
@@ -577,11 +588,16 @@ class FilePanel(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Erreur", str(e))
 
+    def _path_join(self, base: str, name: str) -> str:
+        if isinstance(self._provider, LocalProvider):
+            return os.path.join(base, name)
+        return base.rstrip("/") + "/" + name
+
     def _new_folder(self):
         name, ok = QInputDialog.getText(self, "Nouveau dossier", "Nom :")
         if ok and name:
             try:
-                self._local.mkdir(os.path.join(self._current_path, name))
+                self._provider.mkdir(self._path_join(self._current_path, name))
                 self._load_entries()
             except Exception as e:
                 QMessageBox.critical(self, "Erreur", str(e))
@@ -590,8 +606,12 @@ class FilePanel(QWidget):
         name, ok = QInputDialog.getText(self, "Renommer", "Nouveau nom :", text=entry.name)
         if ok and name and name != entry.name:
             try:
-                dst = os.path.join(os.path.dirname(entry.path), name)
-                self._local.rename(entry.path, dst)
+                if isinstance(self._provider, LocalProvider):
+                    parent = os.path.dirname(entry.path)
+                else:
+                    parent = entry.path.rstrip("/").rsplit("/", 1)[0] or "/"
+                dst = self._path_join(parent, name)
+                self._provider.rename(entry.path, dst)
                 self._load_entries()
             except Exception as e:
                 QMessageBox.critical(self, "Erreur", str(e))
@@ -608,7 +628,10 @@ class FilePanel(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             for e in entries:
                 try:
-                    self._local.delete(e.path)
+                    if isinstance(self._provider, SMBProvider):
+                        self._provider.delete(e.path, is_dir=e.is_dir)
+                    else:
+                        self._provider.delete(e.path)
                 except Exception as ex:
                     QMessageBox.warning(self, "Erreur", f"{e.name} : {ex}")
             self._load_entries()
@@ -642,5 +665,16 @@ class FilePanel(QWidget):
         self._local.show_hidden = show
         self._load_entries()
 
+    def set_provider(self, provider, root_path: str = "/"):
+        self._provider = provider
+        self._current_path = ""
+        self._history.clear()
+        self._future.clear()
+        self._drive_combo.setEnabled(isinstance(provider, LocalProvider))
+        self._navigate(root_path)
+
     def navigate_to(self, path: str):
+        if not isinstance(self._provider, LocalProvider):
+            self._provider = self._local
+            self._drive_combo.setEnabled(True)
         self._navigate(path)

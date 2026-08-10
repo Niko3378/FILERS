@@ -1,7 +1,8 @@
 import difflib
 import os
 import hashlib
-from dataclasses import dataclass
+import stat as _stat
+from dataclasses import dataclass, field
 from typing import List, Tuple
 
 
@@ -19,8 +20,10 @@ class FolderDiffEntry:
     name: str
     left_path: str
     right_path: str
-    status: str  # "equal", "modified", "left_only", "right_only", "type_mismatch"
+    status: str  # "equal", "modified", "left_only", "right_only", "type_mismatch", "perms_differ"
     is_dir: bool
+    left_perms: str = ""
+    right_perms: str = ""
 
 
 def diff_texts(left: str, right: str) -> List[DiffLine]:
@@ -63,6 +66,64 @@ def diff_texts(left: str, right: str) -> List[DiffLine]:
     return result
 
 
+def _get_mode_str(path: str) -> str:
+    try:
+        mode = os.stat(path).st_mode
+        kinds = [
+            (_stat.S_IRUSR, "r"), (_stat.S_IWUSR, "w"), (_stat.S_IXUSR, "x"),
+            (_stat.S_IRGRP, "r"), (_stat.S_IWGRP, "w"), (_stat.S_IXGRP, "x"),
+            (_stat.S_IROTH, "r"), (_stat.S_IWOTH, "w"), (_stat.S_IXOTH, "x"),
+        ]
+        prefix = "d" if _stat.S_ISDIR(mode) else ("l" if _stat.S_ISLNK(mode) else "-")
+        return prefix + "".join(c if mode & m else "-" for m, c in kinds)
+    except Exception:
+        return ""
+
+
+def _get_ntfs_acl_str(path: str) -> str:
+    try:
+        import win32security
+        import ntsecuritycon as con
+        sd = win32security.GetFileSecurity(
+            path, win32security.DACL_SECURITY_INFORMATION
+        )
+        dacl = sd.GetSecurityDescriptorDacl()
+        if not dacl:
+            return ""
+        parts = []
+        for i in range(dacl.GetAceCount()):
+            ace = dacl.GetAce(i)
+            ace_type = ace[0][0]
+            mask = ace[1]
+            sid = ace[2]
+            try:
+                name, domain, _ = win32security.LookupAccountSid(None, sid)
+                account = f"{domain}\\{name}"
+            except Exception:
+                account = str(sid)
+            rights = []
+            if mask & con.FILE_GENERIC_READ:    rights.append("R")
+            if mask & con.FILE_GENERIC_WRITE:   rights.append("W")
+            if mask & con.FILE_GENERIC_EXECUTE: rights.append("X")
+            if mask & con.DELETE:               rights.append("D")
+            t = "Allow" if ace_type == 0 else "Deny"
+            parts.append(f"{account}:{t}:{','.join(rights)}")
+        return " | ".join(sorted(parts))
+    except ImportError:
+        return ""
+    except Exception:
+        return ""
+
+
+def _get_perms(path: str) -> str:
+    mode = _get_mode_str(path)
+    if os.name == "nt":
+        acl = _get_ntfs_acl_str(path)
+        if acl:
+            return f"{mode}  [{acl}]"
+    return mode
+
+
 def _file_hash(path: str) -> str:
     h = hashlib.md5()
     with open(path, "rb") as f:
@@ -72,9 +133,10 @@ def _file_hash(path: str) -> str:
 
 
 def compare_folders(left_dir: str, right_dir: str,
-                    recursive: bool = True) -> List[FolderDiffEntry]:
-    left_names = set()
-    right_names = set()
+                    recursive: bool = True,
+                    compare_perms: bool = False) -> List[FolderDiffEntry]:
+    left_names = {}
+    right_names = {}
 
     try:
         left_names = {e.name: e for e in os.scandir(left_dir)}
@@ -93,6 +155,8 @@ def compare_folders(left_dir: str, right_dir: str,
         r_entry = right_names.get(name)
         l_path = os.path.join(left_dir, name) if l_entry else ""
         r_path = os.path.join(right_dir, name) if r_entry else ""
+        left_perms = ""
+        right_perms = ""
 
         if l_entry and r_entry:
             l_is_dir = l_entry.is_dir()
@@ -101,12 +165,19 @@ def compare_folders(left_dir: str, right_dir: str,
                 status = "type_mismatch"
             elif l_is_dir:
                 status = "equal"
+                sub = []
                 if recursive:
-                    sub = compare_folders(l_path, r_path, recursive)
+                    sub = compare_folders(l_path, r_path, recursive, compare_perms)
                     if any(e.status != "equal" for e in sub):
                         status = "modified"
-                results.append(FolderDiffEntry(name, l_path, r_path, status, True))
-                if recursive and l_is_dir:
+                if compare_perms:
+                    left_perms = _get_perms(l_path)
+                    right_perms = _get_perms(r_path)
+                    if status == "equal" and left_perms != right_perms:
+                        status = "perms_differ"
+                results.append(FolderDiffEntry(name, l_path, r_path, status, True,
+                                               left_perms, right_perms))
+                if recursive:
                     results.extend(_indent_results(sub, name))
                 continue
             else:
@@ -118,19 +189,31 @@ def compare_folders(left_dir: str, right_dir: str,
                     l_mt = l_entry.stat().st_mtime
                     r_mt = r_entry.stat().st_mtime
                     status = "equal" if (l_sz == r_sz and abs(l_mt - r_mt) < 2) else "modified"
+                if compare_perms:
+                    left_perms = _get_perms(l_path)
+                    right_perms = _get_perms(r_path)
+                    if status == "equal" and left_perms != right_perms:
+                        status = "perms_differ"
         elif l_entry:
             status = "left_only"
             l_is_dir = l_entry.is_dir()
-            results.append(FolderDiffEntry(name, l_path, "", status, l_is_dir))
+            if compare_perms:
+                left_perms = _get_perms(l_path)
+            results.append(FolderDiffEntry(name, l_path, "", status, l_is_dir,
+                                           left_perms, right_perms))
             continue
         else:
             status = "right_only"
             r_is_dir = r_entry.is_dir()
-            results.append(FolderDiffEntry(name, "", r_path, status, r_is_dir))
+            if compare_perms:
+                right_perms = _get_perms(r_path)
+            results.append(FolderDiffEntry(name, "", r_path, status, r_is_dir,
+                                           left_perms, right_perms))
             continue
 
         results.append(FolderDiffEntry(name, l_path, r_path, status,
-                                       l_entry.is_dir() if l_entry else False))
+                                       l_entry.is_dir() if l_entry else False,
+                                       left_perms, right_perms))
     return results
 
 
@@ -143,6 +226,8 @@ def _indent_results(entries: List[FolderDiffEntry], parent: str) -> List[FolderD
             right_path=e.right_path,
             status=e.status,
             is_dir=e.is_dir,
+            left_perms=e.left_perms,
+            right_perms=e.right_perms,
         )
         indented.append(e2)
     return indented

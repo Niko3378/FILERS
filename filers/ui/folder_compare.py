@@ -18,6 +18,7 @@ STATUS_STYLES = {
     "left_only":     ("#e3f2fd", "#1565c0", "◄",  "Gauche seul"),
     "right_only":    ("#f3e5f5", "#7b1fa2", "►",  "Droite seul"),
     "type_mismatch": ("#ffebee", "#c62828", "!",  "Type diff."),
+    "perms_differ":  ("#e8f5e9", "#2e7d32", "⚑",  "Droits diff."),
 }
 
 
@@ -25,15 +26,18 @@ class CompareWorker(QThread):
     done = pyqtSignal(list)
     error = pyqtSignal(str)
 
-    def __init__(self, left: str, right: str, recursive: bool = True):
+    def __init__(self, left: str, right: str, recursive: bool = True,
+                 compare_perms: bool = False):
         super().__init__()
         self.left = left
         self.right = right
         self.recursive = recursive
+        self.compare_perms = compare_perms
 
     def run(self):
         try:
-            results = compare_folders(self.left, self.right, self.recursive)
+            results = compare_folders(self.left, self.right, self.recursive,
+                                      self.compare_perms)
             self.done.emit(results)
         except Exception as e:
             self.error.emit(str(e))
@@ -85,6 +89,14 @@ class FolderCompare(QWidget):
         paths_row.addSpacing(16)
         paths_row.addWidget(self._hide_equal_chk)
 
+        self._compare_perms_chk = QCheckBox("Comparer les droits")
+        self._compare_perms_chk.setToolTip(
+            "Compare les permissions NTFS (ACL) en plus du contenu.\n"
+            "Peut être plus lent sur les grands dossiers."
+        )
+        paths_row.addSpacing(8)
+        paths_row.addWidget(self._compare_perms_chk)
+
         layout.addLayout(paths_row)
 
         # ── Barre de progression ───────────────────────────────────────────
@@ -134,7 +146,8 @@ class FolderCompare(QWidget):
         self._progress.setVisible(True)
         self._compare_btn.setEnabled(False)
         self._export_btn.setEnabled(False)
-        self._worker = CompareWorker(left, right)
+        compare_perms = self._compare_perms_chk.isChecked()
+        self._worker = CompareWorker(left, right, compare_perms=compare_perms)
         self._worker.done.connect(self._on_done)
         self._worker.error.connect(self._on_error)
         self._worker.start()
@@ -189,6 +202,10 @@ class FolderCompare(QWidget):
             font = item.font(0)
             font.setBold(True)
             item.setFont(0, font)
+        if entry.left_perms or entry.right_perms:
+            tip = f"Droits gauche : {entry.left_perms or '—'}\nDroits droite : {entry.right_perms or '—'}"
+            item.setToolTip(0, tip)
+            item.setToolTip(1, tip)
         self._tree.addTopLevelItem(item)
 
     def _on_double_click(self, item: QTreeWidgetItem, col: int):
@@ -209,12 +226,19 @@ class FolderCompare(QWidget):
         if not path:
             return
         try:
+            has_perms = any(e.left_perms or e.right_perms for e in self._last_results)
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f, delimiter=";")
-                writer.writerow(["Nom", "État", "Chemin gauche", "Chemin droite"])
+                headers = ["Nom", "État", "Chemin gauche", "Chemin droite"]
+                if has_perms:
+                    headers += ["Droits gauche", "Droits droite"]
+                writer.writerow(headers)
                 for e in self._last_results:
                     _, _, icon, label = STATUS_STYLES.get(e.status, ("", "", "?", "?"))
-                    writer.writerow([e.name.strip(), f"{icon} {label}", e.left_path, e.right_path])
+                    row = [e.name.strip(), f"{icon} {label}", e.left_path, e.right_path]
+                    if has_perms:
+                        row += [e.left_perms, e.right_perms]
+                    writer.writerow(row)
             QMessageBox.information(self, "Export CSV", f"Rapport exporté :\n{path}")
         except Exception as ex:
             QMessageBox.critical(self, "Erreur export", str(ex))

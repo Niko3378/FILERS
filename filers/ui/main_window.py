@@ -474,8 +474,11 @@ class MainWindow(QMainWindow):
     @pyqtSlot(object, str)
     def _on_connected(self, provider, label: str):
         self._status_label.setText(f"Connecté : {label}")
+        panel = self._active_panel or self._right_panel
+        panel.set_provider(provider, "/")
+        self._panels_tabs.setCurrentIndex(0)
         QMessageBox.information(self, "Connexion réussie",
-                                f"Connecté à {label}\n\nNavigation réseau disponible dans le panneau.")
+                                f"Connecté à {label}\n\nNavigation active dans le panneau.")
 
     @pyqtSlot(str)
     def _on_connect_error(self, msg: str):
