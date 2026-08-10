@@ -169,6 +169,7 @@ class FilePanel(QWidget):
         self._worker = None
         self._search_worker = None
         self._is_searching = False
+        self._total_count = 0
         self._build_ui()
         key = f"last_path_{label.lower()}"
         saved = settings.get(key, "")
@@ -252,6 +253,8 @@ class FilePanel(QWidget):
 
         QShortcut(QKeySequence("Ctrl+F"), self, self._toggle_filter_bar)
         QShortcut(QKeySequence("Escape"), self._filter_edit, self._clear_filter)
+        QShortcut(QKeySequence("Delete"), self, self._delete_selected)
+        QShortcut(QKeySequence("Ctrl+A"), self, self._tree.selectAll)
 
         self._tree = FileTree()
         self._tree.files_dropped.connect(self.files_dropped)
@@ -324,8 +327,8 @@ class FilePanel(QWidget):
         for entry in entries:
             item = self._make_item(entry)
             self._tree.addTopLevelItem(item)
-        count = len(entries)
-        self._status_label.setText(f"{count} élément(s)")
+        self._total_count = len(entries)
+        self._status_label.setText(f"{self._total_count} élément(s)")
 
     def _make_item(self, entry) -> QTreeWidgetItem:
         name = entry.name
@@ -400,6 +403,23 @@ class FilePanel(QWidget):
         self.selection_changed.emit(entries)
         if len(entries) == 1 and not entries[0].is_dir:
             self.file_selected.emit(entries[0].path)
+        total = getattr(self, "_total_count", self._tree.topLevelItemCount())
+        if len(entries) > 1:
+            sel_size = sum(getattr(e, "size", 0) for e in entries if not e.is_dir)
+            size_str = f" — {fmt_size(sel_size)}" if sel_size else ""
+            self._status_label.setText(
+                f"{len(entries)} sélectionné(s){size_str} / {total} élément(s)"
+            )
+        elif len(entries) == 0:
+            self._status_label.setText(f"{total} élément(s)")
+        else:
+            e = entries[0]
+            if e.is_dir:
+                self._status_label.setText(f"1 sélectionné / {total} élément(s)")
+            else:
+                self._status_label.setText(
+                    f"1 sélectionné — {fmt_size(e.size)} / {total} élément(s)"
+                )
 
     def _go_back(self):
         if self._history:
@@ -547,21 +567,22 @@ class FilePanel(QWidget):
         is_local = isinstance(self._provider, LocalProvider)
 
         if entries:
-            rename_act = menu.addAction("Renommer")
-            rename_act.triggered.connect(lambda: self._rename(entries[0]))
+            if len(entries) == 1:
+                rename_act = menu.addAction("Renommer")
+                rename_act.triggered.connect(lambda: self._rename(entries[0]))
             trash_label = "Supprimer (Corbeille)" if is_local else "Supprimer"
             trash_act = menu.addAction(trash_label)
             trash_act.triggered.connect(lambda: self._delete_to_trash(entries))
-            del_act = menu.addAction("Supprimer définitivement")
+            del_act = menu.addAction("Supprimer définitivement  [Suppr]")
             del_act.triggered.connect(lambda: self._delete(entries))
-            if is_local:
+            if is_local and len(entries) == 1:
                 menu.addSeparator()
                 rights_act = menu.addAction("Droits / Permissions")
                 rights_act.triggered.connect(lambda: self._show_rights(entries[0]))
 
         if entries and is_local:
             toggle_hidden_act = menu.addAction("Basculer caché")
-            toggle_hidden_act.triggered.connect(lambda: self._toggle_hidden(entries[0]))
+            toggle_hidden_act.triggered.connect(lambda: self._toggle_hidden_multi(entries))
 
         if entries:
             menu.addSeparator()
@@ -642,6 +663,13 @@ class FilePanel(QWidget):
         dlg = RightsDialog(perms, self)
         dlg.exec()
 
+    def _delete_selected(self):
+        items = self._tree.selectedItems()
+        entries = [i.data(0, Qt.ItemDataRole.UserRole) for i in items
+                   if i.data(0, Qt.ItemDataRole.UserRole)]
+        if entries:
+            self._delete(entries)
+
     def _toggle_hidden(self, entry):
         is_hidden = getattr(entry, "is_hidden", entry.name.startswith("."))
         try:
@@ -649,6 +677,15 @@ class FilePanel(QWidget):
             self._load_entries()
         except Exception as e:
             QMessageBox.warning(self, "Erreur", str(e))
+
+    def _toggle_hidden_multi(self, entries):
+        for e in entries:
+            is_hidden = getattr(e, "is_hidden", e.name.startswith("."))
+            try:
+                self._local.set_hidden(e.path, not is_hidden)
+            except Exception as ex:
+                QMessageBox.warning(self, "Erreur", f"{e.name} : {ex}")
+        self._load_entries()
 
     def get_selected_paths(self) -> list:
         items = self._tree.selectedItems()
