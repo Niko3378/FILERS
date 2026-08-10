@@ -7,6 +7,12 @@ Format : [version/date] — description.
 
 ## [1.1.0] — 2026-08-10
 
+### Maintenance
+- Rebuild de `Files Manager.exe` et `FILERS_1.1.0.msi` avec les sources v1.1.0.
+- Version WiX (`FILERS.wxs`) mise à jour de 1.0.0 à 1.1.0.
+- Ancien `FILERS_1.0.0_Finale.msi` supprimé du dépôt.
+- `*.wixpdb` ajouté au `.gitignore`.
+
 ### Nouvelles fonctionnalités
 - **Comparaison des droits/permissions** : la comparaison de dossiers peut désormais comparer les permissions NTFS (ACL) en plus du contenu. Les fichiers dont les droits diffèrent apparaissent avec le statut « Droits diff. » (⚑).
 - **Export CSV enrichi** : lorsque la comparaison des droits est activée, le rapport CSV inclut deux colonnes supplémentaires « Droits gauche » et « Droits droite ».
@@ -62,4 +68,4 @@ Format : [version/date] — description.
 
 ---
 
-*Généré le 2026-08-10.*
+*Mis à jour le 2026-08-10.*
