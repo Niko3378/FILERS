@@ -27,6 +27,32 @@ def fmt_size(size: int) -> str:
     return f"{s:.1f} Po"
 
 
+class SortableItem(QTreeWidgetItem):
+    """QTreeWidgetItem with correct numeric sorting for size and date columns."""
+    # Column indices
+    COL_NAME, COL_SIZE, COL_TYPE, COL_DATE, COL_PERMS = range(5)
+
+    def __lt__(self, other: QTreeWidgetItem) -> bool:
+        tree = self.treeWidget()
+        col = tree.sortColumn() if tree else 0
+        e1 = self.data(0, Qt.ItemDataRole.UserRole)
+        e2 = other.data(0, Qt.ItemDataRole.UserRole)
+
+        if col == self.COL_SIZE:
+            s1 = getattr(e1, "size", 0) if (e1 and not e1.is_dir) else -1
+            s2 = getattr(e2, "size", 0) if (e2 and not e2.is_dir) else -1
+            return s1 < s2
+
+        if col == self.COL_DATE:
+            d1 = e1.modified if e1 else None
+            d2 = e2.modified if e2 else None
+            if d1 and d2:
+                return d1 < d2
+            return d1 is not None
+
+        return self.text(col).lower() < other.text(col).lower()
+
+
 class FileTree(QTreeWidget):
     files_dropped = pyqtSignal(list)
 
@@ -338,7 +364,7 @@ class FilePanel(QWidget):
         date_str = entry.modified.strftime(DATETIME_FMT) if entry.modified.year > 1 else ""
         perms = entry.permissions if hasattr(entry, "permissions") else ""
 
-        item = QTreeWidgetItem([name, size_str, kind, date_str, perms])
+        item = SortableItem([name, size_str, kind, date_str, perms])
         item.setData(0, Qt.ItemDataRole.UserRole, entry)
 
         if is_dir:
