@@ -14,6 +14,7 @@ Format : [version/date] — description.
 - `*.wixpdb` ajouté au `.gitignore`.
 
 ### Nouvelles fonctionnalités
+- **Tri des colonnes** : tri correct sur toutes les colonnes — Taille par octets réels, Modifié chronologiquement, Nom/Type/Droits alphabétiquement insensible à la casse. Clic sur l'en-tête pour trier, second clic pour inverser.
 - **Sélection multiple** : Ctrl+A pour tout sélectionner, Suppr pour supprimer la sélection, barre de statut affichant le nombre et la taille totale des éléments sélectionnés. Menu contextuel adaptatif (Renommer et Droits masqués en multi-sélection, Basculer caché et Copier/Déplacer appliqués à toute la sélection).
 - **Comparaison des droits/permissions** : la comparaison de dossiers peut désormais comparer les permissions NTFS (ACL) en plus du contenu. Les fichiers dont les droits diffèrent apparaissent avec le statut « Droits diff. » (⚑).
 - **Export CSV enrichi** : lorsque la comparaison des droits est activée, le rapport CSV inclut deux colonnes supplémentaires « Droits gauche » et « Droits droite ».
