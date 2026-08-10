@@ -14,12 +14,14 @@ Format : [version/date] — description.
 - `*.wixpdb` ajouté au `.gitignore`.
 
 ### Nouvelles fonctionnalités
+- **Synchronisation de dossiers** : boutons "Sync Gauche → Droite" et "Sync Droite → Gauche" dans la vue de comparaison. Mode miroir optionnel (supprime les fichiers en trop dans la destination). Progression en temps réel, bouton Annuler, relance automatique de la comparaison après sync.
 - **Tri des colonnes** : tri correct sur toutes les colonnes — Taille par octets réels, Modifié chronologiquement, Nom/Type/Droits alphabétiquement insensible à la casse. Clic sur l'en-tête pour trier, second clic pour inverser.
 - **Sélection multiple** : Ctrl+A pour tout sélectionner, Suppr pour supprimer la sélection, barre de statut affichant le nombre et la taille totale des éléments sélectionnés. Menu contextuel adaptatif (Renommer et Droits masqués en multi-sélection, Basculer caché et Copier/Déplacer appliqués à toute la sélection).
 - **Comparaison des droits/permissions** : la comparaison de dossiers peut désormais comparer les permissions NTFS (ACL) en plus du contenu. Les fichiers dont les droits diffèrent apparaissent avec le statut « Droits diff. » (⚑).
 - **Export CSV enrichi** : lorsque la comparaison des droits est activée, le rapport CSV inclut deux colonnes supplémentaires « Droits gauche » et « Droits droite ».
 
 ### Corrections
+- **Crash au démarrage** : le raccourci Ctrl+A référençait `_tree` avant sa création — corrigé avec une lambda différée.
 - **Navigation distante** : après connexion FTP/SFTP/SMB via ConnectWorker, le provider est maintenant correctement transmis au panneau actif (`set_provider()`), rendant la navigation distante fonctionnelle.
 - **Opérations fichiers distantes** : création de dossier, renommage, suppression et menu contextuel adaptent désormais leur comportement selon le type de provider (local vs distant).
 - **Jointure de chemins distants** : utilisation d'un helper `_path_join()` pour éviter les séparateurs Windows (`\`) sur les chemins distants qui attendent `/`.
