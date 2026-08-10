@@ -180,6 +180,10 @@ class MainWindow(QMainWindow):
         self._act_hidden.setShortcut(QKeySequence("Ctrl+H"))
         self._act_hidden.toggled.connect(self._toggle_hidden)
         affichage.addAction(self._act_hidden)
+        self._act_dark = QAction("Mode sombre", self, checkable=True)
+        self._act_dark.setShortcut(QKeySequence("Ctrl+Shift+D"))
+        self._act_dark.toggled.connect(self._toggle_dark_mode)
+        affichage.addAction(self._act_dark)
 
         outils = mb.addMenu("Outils")
         act_compare_files = QAction("Comparer fichiers…", self)
@@ -353,6 +357,8 @@ class MainWindow(QMainWindow):
             self._h_splitter.setSizes(sizes)
         if sizes := settings.get("v_splitter_sizes"):
             self._v_splitter.setSizes(sizes)
+        if settings.get("dark_mode", False):
+            self._act_dark.setChecked(True)
         active_tab = settings.get("active_tab", 0)
         if 0 <= active_tab < self._panels_tabs.count():
             self._panels_tabs.setCurrentIndex(active_tab)
@@ -454,6 +460,11 @@ class MainWindow(QMainWindow):
         worker.progress.connect(on_progress)
         worker.finished.connect(on_finished)
         worker.start()
+
+    def _toggle_dark_mode(self, dark: bool):
+        from core.theme import apply_theme
+        apply_theme(dark)
+        settings.set_value("dark_mode", dark)
 
     def _toggle_hidden(self, show: bool):
         self._local.show_hidden = show
