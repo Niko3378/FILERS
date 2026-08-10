@@ -275,15 +275,15 @@ class MainWindow(QMainWindow):
 
         panels_tabs = QTabWidget()
 
-        v_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._v_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._left_panel = FilePanel(self._local, "Gauche")
         self._right_panel = FilePanel(self._local, "Droite")
         self._left_panel.request_diff.connect(self._open_diff)
         self._right_panel.request_diff.connect(self._open_diff)
-        v_splitter.addWidget(self._left_panel)
-        v_splitter.addWidget(self._right_panel)
-        v_splitter.setSizes([500, 500])
-        panels_tabs.addTab(v_splitter, "Fichiers")
+        self._v_splitter.addWidget(self._left_panel)
+        self._v_splitter.addWidget(self._right_panel)
+        self._v_splitter.setSizes([500, 500])
+        panels_tabs.addTab(self._v_splitter, "Fichiers")
 
         self._diff_viewer = DiffViewer()
         panels_tabs.addTab(self._diff_viewer, "Diff texte")
@@ -349,9 +349,16 @@ class MainWindow(QMainWindow):
         g = settings.get("window_geometry")
         if g:
             self.setGeometry(g["x"], g["y"], g["w"], g["h"])
-        splitter_sizes = settings.get("h_splitter_sizes")
-        if splitter_sizes:
-            self._h_splitter.setSizes(splitter_sizes)
+        if sizes := settings.get("h_splitter_sizes"):
+            self._h_splitter.setSizes(sizes)
+        if sizes := settings.get("v_splitter_sizes"):
+            self._v_splitter.setSizes(sizes)
+        active_tab = settings.get("active_tab", 0)
+        if 0 <= active_tab < self._panels_tabs.count():
+            self._panels_tabs.setCurrentIndex(active_tab)
+        for path in settings.get("editor_open_files", []):
+            if os.path.isfile(path):
+                self._text_editor.open_file(path)
 
     def _build_statusbar(self):
         self._status = QStatusBar()
@@ -576,6 +583,9 @@ class MainWindow(QMainWindow):
         settings.set_value("window_geometry", {"x": g.x(), "y": g.y(), "w": g.width(), "h": g.height()})
         settings.set_value("show_hidden", self._act_hidden.isChecked())
         settings.set_value("h_splitter_sizes", self._h_splitter.sizes())
+        settings.set_value("v_splitter_sizes", self._v_splitter.sizes())
+        settings.set_value("active_tab", self._panels_tabs.currentIndex())
+        settings.set_value("editor_open_files", self._text_editor.get_open_paths())
         super().closeEvent(event)
 
     def _uninstall(self):

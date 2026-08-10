@@ -632,3 +632,13 @@ class TextEditor(QWidget):
 
     def close_current_tab(self):
         self.close_tab(self._tabs.currentIndex())
+
+    def get_open_paths(self) -> list:
+        paths = []
+        for i in range(self._tabs.count()):
+            w = self._tabs.widget(i)
+            if isinstance(w, EditorWidget):
+                p = w.get_path()
+                if p:
+                    paths.append(p)
+        return paths
