@@ -14,6 +14,7 @@ Format : [version/date] — description.
 - `*.wixpdb` ajouté au `.gitignore`.
 
 ### Nouvelles fonctionnalités
+- **Persistance de session** : au redémarrage, l'application restaure l'onglet actif, les fichiers ouverts dans l'éditeur, les tailles des splitters horizontal et vertical, les chemins des panneaux et l'état des fichiers cachés.
 - **Synchronisation de dossiers** : boutons "Sync Gauche → Droite" et "Sync Droite → Gauche" dans la vue de comparaison. Mode miroir optionnel (supprime les fichiers en trop dans la destination). Progression en temps réel, bouton Annuler, relance automatique de la comparaison après sync.
 - **Tri des colonnes** : tri correct sur toutes les colonnes — Taille par octets réels, Modifié chronologiquement, Nom/Type/Droits alphabétiquement insensible à la casse. Clic sur l'en-tête pour trier, second clic pour inverser.
 - **Sélection multiple** : Ctrl+A pour tout sélectionner, Suppr pour supprimer la sélection, barre de statut affichant le nombre et la taille totale des éléments sélectionnés. Menu contextuel adaptatif (Renommer et Droits masqués en multi-sélection, Basculer caché et Copier/Déplacer appliqués à toute la sélection).
