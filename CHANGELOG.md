@@ -14,6 +14,7 @@ Format : [version/date] — description.
 - `*.wixpdb` ajouté au `.gitignore`.
 
 ### Nouvelles fonctionnalités
+- **Mode sombre** : bascule via **Ctrl+Shift+D** ou menu Affichage → Mode sombre. Thème Catppuccin Mocha (fond `#1e1e2e`, accent `#89b4fa`). Préférence sauvegardée et restaurée au démarrage.
 - **Persistance de session** : au redémarrage, l'application restaure l'onglet actif, les fichiers ouverts dans l'éditeur, les tailles des splitters horizontal et vertical, les chemins des panneaux et l'état des fichiers cachés.
 - **Synchronisation de dossiers** : boutons "Sync Gauche → Droite" et "Sync Droite → Gauche" dans la vue de comparaison. Mode miroir optionnel (supprime les fichiers en trop dans la destination). Progression en temps réel, bouton Annuler, relance automatique de la comparaison après sync.
 - **Tri des colonnes** : tri correct sur toutes les colonnes — Taille par octets réels, Modifié chronologiquement, Nom/Type/Droits alphabétiquement insensible à la casse. Clic sur l'en-tête pour trier, second clic pour inverser.
