@@ -1,5 +1,6 @@
 import csv
 import os
+import shutil
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem,
@@ -20,6 +21,87 @@ STATUS_STYLES = {
     "type_mismatch": ("#ffebee", "#c62828", "!",  "Type diff."),
     "perms_differ":  ("#e8f5e9", "#2e7d32", "⚑",  "Droits diff."),
 }
+
+
+class SyncWorker(QThread):
+    progress = pyqtSignal(int, int, str)   # current, total, filename
+    done = pyqtSignal(int, int)            # copied/deleted, errors
+
+    def __init__(self, results: list, direction: str,
+                 left_dir: str, right_dir: str, delete_extra: bool = False):
+        super().__init__()
+        self._results = results
+        self._ltr = direction == "ltr"     # left-to-right
+        self._left_dir = left_dir
+        self._right_dir = right_dir
+        self._delete_extra = delete_extra
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        copied = errors = 0
+        entries = self._results
+        total = len(entries)
+        for i, entry in enumerate(entries):
+            if self._cancelled:
+                break
+            self.progress.emit(i, total, entry.name.strip())
+            try:
+                if self._ltr:
+                    copied += self._sync_entry_ltr(entry)
+                else:
+                    copied += self._sync_entry_rtl(entry)
+            except Exception:
+                errors += 1
+        self.done.emit(copied, errors)
+
+    def _sync_entry_ltr(self, e: FolderDiffEntry) -> int:
+        if e.status == "left_only":
+            if e.is_dir:
+                dst = os.path.join(self._right_dir,
+                                   os.path.relpath(e.left_path, self._left_dir))
+                shutil.copytree(e.left_path, dst, dirs_exist_ok=True)
+            else:
+                dst = os.path.join(self._right_dir,
+                                   os.path.relpath(e.left_path, self._left_dir))
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(e.left_path, dst)
+            return 1
+        if e.status == "modified" and not e.is_dir:
+            shutil.copy2(e.left_path, e.right_path)
+            return 1
+        if e.status == "right_only" and self._delete_extra:
+            if e.is_dir:
+                shutil.rmtree(e.right_path)
+            else:
+                os.remove(e.right_path)
+            return 1
+        return 0
+
+    def _sync_entry_rtl(self, e: FolderDiffEntry) -> int:
+        if e.status == "right_only":
+            if e.is_dir:
+                dst = os.path.join(self._left_dir,
+                                   os.path.relpath(e.right_path, self._right_dir))
+                shutil.copytree(e.right_path, dst, dirs_exist_ok=True)
+            else:
+                dst = os.path.join(self._left_dir,
+                                   os.path.relpath(e.right_path, self._right_dir))
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(e.right_path, dst)
+            return 1
+        if e.status == "modified" and not e.is_dir:
+            shutil.copy2(e.right_path, e.left_path)
+            return 1
+        if e.status == "left_only" and self._delete_extra:
+            if e.is_dir:
+                shutil.rmtree(e.left_path)
+            else:
+                os.remove(e.left_path)
+            return 1
+        return 0
 
 
 class CompareWorker(QThread):
@@ -117,6 +199,37 @@ class FolderCompare(QWidget):
         self._tree.itemDoubleClicked.connect(self._on_double_click)
         layout.addWidget(self._tree)
 
+        # ── Barre de synchronisation ───────────────────────────────────────
+        sync_row = QHBoxLayout()
+
+        self._sync_ltr_btn = QPushButton("Sync Gauche → Droite")
+        self._sync_ltr_btn.setEnabled(False)
+        self._sync_ltr_btn.setToolTip("Copie les fichiers manquants/modifiés vers le dossier droite")
+        self._sync_ltr_btn.clicked.connect(lambda: self._start_sync("ltr"))
+
+        self._sync_rtl_btn = QPushButton("Sync Droite → Gauche")
+        self._sync_rtl_btn.setEnabled(False)
+        self._sync_rtl_btn.setToolTip("Copie les fichiers manquants/modifiés vers le dossier gauche")
+        self._sync_rtl_btn.clicked.connect(lambda: self._start_sync("rtl"))
+
+        self._delete_extra_chk = QCheckBox("Supprimer les fichiers en trop (miroir)")
+        self._delete_extra_chk.setToolTip(
+            "Supprime aussi les fichiers présents uniquement dans le dossier destination.\n"
+            "Rend les deux dossiers identiques."
+        )
+
+        self._cancel_sync_btn = QPushButton("Annuler")
+        self._cancel_sync_btn.setVisible(False)
+        self._cancel_sync_btn.clicked.connect(self._cancel_sync)
+
+        sync_row.addWidget(self._sync_ltr_btn)
+        sync_row.addWidget(self._sync_rtl_btn)
+        sync_row.addSpacing(12)
+        sync_row.addWidget(self._delete_extra_chk)
+        sync_row.addStretch()
+        sync_row.addWidget(self._cancel_sync_btn)
+        layout.addLayout(sync_row)
+
         # ── Barre de stats + export ────────────────────────────────────────
         bottom_row = QHBoxLayout()
 
@@ -157,7 +270,10 @@ class FolderCompare(QWidget):
         self._compare_btn.setEnabled(True)
         self._last_results = results
         self._apply_filter()
-        self._export_btn.setEnabled(bool(results))
+        has = bool(results)
+        self._export_btn.setEnabled(has)
+        self._sync_ltr_btn.setEnabled(has)
+        self._sync_rtl_btn.setEnabled(has)
 
     def _apply_filter(self):
         self._tree.clear()
@@ -212,6 +328,61 @@ class FolderCompare(QWidget):
         entry: FolderDiffEntry = item.data(0, Qt.ItemDataRole.UserRole)
         if entry and not entry.is_dir and entry.status == "modified":
             self.open_diff.emit(entry.left_path, entry.right_path)
+
+    # ── Synchronisation ────────────────────────────────────────────────────
+
+    def _start_sync(self, direction: str):
+        if not self._last_results:
+            return
+        left = self._left_edit.text().strip()
+        right = self._right_edit.text().strip()
+        delete_extra = self._delete_extra_chk.isChecked()
+
+        label = "Gauche → Droite" if direction == "ltr" else "Droite → Gauche"
+        msg = f"Synchroniser {label} ?"
+        if delete_extra:
+            msg += "\n\nAttention : les fichiers présents uniquement dans le dossier destination seront supprimés."
+        reply = QMessageBox.question(self, "Confirmer la synchronisation", msg,
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self._sync_ltr_btn.setEnabled(False)
+        self._sync_rtl_btn.setEnabled(False)
+        self._compare_btn.setEnabled(False)
+        self._cancel_sync_btn.setVisible(True)
+        self._progress.setRange(0, 0)
+        self._progress.setVisible(True)
+
+        self._sync_worker = SyncWorker(self._last_results, direction,
+                                       left, right, delete_extra)
+        self._sync_worker.progress.connect(self._on_sync_progress)
+        self._sync_worker.done.connect(self._on_sync_done)
+        self._sync_worker.start()
+
+    def _cancel_sync(self):
+        if hasattr(self, "_sync_worker") and self._sync_worker.isRunning():
+            self._sync_worker.cancel()
+
+    def _on_sync_progress(self, current: int, total: int, name: str):
+        if total > 0:
+            self._progress.setRange(0, total)
+            self._progress.setValue(current)
+        self._stats_label.setText(f"Synchronisation… {name}")
+
+    def _on_sync_done(self, copied: int, errors: int):
+        self._progress.setVisible(False)
+        self._cancel_sync_btn.setVisible(False)
+        self._compare_btn.setEnabled(True)
+        self._sync_ltr_btn.setEnabled(bool(self._last_results))
+        self._sync_rtl_btn.setEnabled(bool(self._last_results))
+        if errors:
+            QMessageBox.warning(self, "Synchronisation terminée",
+                                f"{copied} élément(s) traité(s), {errors} erreur(s).")
+        else:
+            QMessageBox.information(self, "Synchronisation terminée",
+                                    f"{copied} élément(s) traité(s) avec succès.")
+        self._start_compare()
 
     # ── Export CSV ─────────────────────────────────────────────────────────
 

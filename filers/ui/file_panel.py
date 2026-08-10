@@ -280,7 +280,7 @@ class FilePanel(QWidget):
         QShortcut(QKeySequence("Ctrl+F"), self, self._toggle_filter_bar)
         QShortcut(QKeySequence("Escape"), self._filter_edit, self._clear_filter)
         QShortcut(QKeySequence("Delete"), self, self._delete_selected)
-        QShortcut(QKeySequence("Ctrl+A"), self, self._tree.selectAll)
+        QShortcut(QKeySequence("Ctrl+A"), self, lambda: self._tree.selectAll())
 
         self._tree = FileTree()
         self._tree.files_dropped.connect(self.files_dropped)
