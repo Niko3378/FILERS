@@ -2,9 +2,9 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
-  <Package Name="Files Manager 1.2.0"
+  <Package Name="Files Manager 1.3.0"
            Language="1036"
-           Version="1.2.0"
+           Version="1.3.0"
            Manufacturer="IA-Projet6"
            UpgradeCode="B7C4A2F1-3E8D-4B5C-9A1D-F2E6C8B4A573"
            Scope="perUser">

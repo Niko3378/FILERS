@@ -38,6 +38,7 @@ SECTIONS = [
     ("  Analyse d'espace disque",  "rapport-espace"),
     ("  Fichiers en double",       "rapport-doublons"),
     ("  Fichiers récents",         "rapport-recents"),
+    ("  Droits NTFS",              "rapport-ntfs"),
     ("Raccourcis clavier",         "shortcuts"),
     ("Dépannage",                  "troubleshoot"),
 ]
@@ -142,7 +143,7 @@ _HTML_BODY = r"""
   le glisser-déposer.
 </p>
 <div class="info">
-  <strong>Version :</strong> 1.2.0 &nbsp;|&nbsp;
+  <strong>Version :</strong> 1.3.0 &nbsp;|&nbsp;
   <strong>Technologie :</strong> Python 3 + PyQt6 &nbsp;|&nbsp;
   <strong>Plateformes :</strong> Windows (NTFS), Linux, macOS
 </div>
@@ -155,7 +156,7 @@ _HTML_BODY = r"""
   <tr><td><strong>Barre de menus</strong></td><td>Fichier, Affichage, Outils, Aide</td></tr>
   <tr><td><strong>Barre d'outils</strong></td><td>Accès rapide : Copier (F5), Déplacer (F6), Réseau, Aide</td></tr>
   <tr><td><strong>Arborescence</strong> (gauche)</td><td>Navigation dans l'arborescence des disques, dossiers et favoris</td></tr>
-  <tr><td><strong>Zone centrale</strong></td><td>Onglets : Fichiers · Diff texte · Comparaison dossiers · Éditeur · Aperçu · Inventaire · Espace disque · Doublons · Fichiers récents</td></tr>
+  <tr><td><strong>Zone centrale</strong></td><td>Onglets : Fichiers · Diff texte · Comparaison dossiers · Éditeur · Aperçu · Inventaire · Espace disque · Doublons · Fichiers récents · Droits NTFS</td></tr>
 </table>
 
 <h2>Disposition générale</h2>
@@ -952,6 +953,55 @@ print('Nettoyage termine')
 <div class="tip">
   Exportez en CSV pour obtenir un journal des modifications récentes,
   utile pour les audits ou les sauvegardes ciblées.
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<h2 id="rapport-ntfs"><span class="anchor" id="a-rapport-ntfs"></span>Droits NTFS</h2>
+<p>
+  <strong>Outils → Droits NTFS…</strong><br>
+  Génère un rapport d'audit des ACL NTFS (Access Control Lists) d'un dossier :
+  qui a accès à quoi, avec quel niveau de droit, et si la permission est héritée
+  ou explicite.
+</p>
+<table>
+  <tr><th>Option</th><th>Description</th></tr>
+  <tr><td><strong>Récursif</strong></td><td>Descend dans tous les sous-dossiers (coché par défaut)</td></tr>
+  <tr><td><strong>Inclure fichiers</strong></td><td>Lit aussi les ACL de chaque fichier (plus lent)</td></tr>
+</table>
+<h3>Structure du résultat</h3>
+<p>
+  L'arbre affiche un <strong>nœud parent</strong> par objet (dossier ou fichier),
+  développable pour révéler ses entrées ACL (une ligne par ACE) :
+</p>
+<table>
+  <tr><th>Colonne</th><th>Niveau</th><th>Description</th></tr>
+  <tr><td>Nom</td><td>Parent</td><td>Nom du dossier ou fichier (en gras, bleu pour les dossiers)</td></tr>
+  <tr><td>Type</td><td>Parent</td><td>« Dossier » ou « Fichier »</td></tr>
+  <tr><td>Principal</td><td>ACE</td><td>Compte ou groupe Windows (ex : <code>DOMAINE\Utilisateurs</code>)</td></tr>
+  <tr><td>Droits</td><td>ACE</td><td>Niveau de droit : Contrôle total · Modification · Lecture et exécution · Écriture · Lecture…</td></tr>
+  <tr><td>Accès</td><td>ACE</td><td><span style="color:#2e7d32"><strong>Autoriser</strong></span> (vert) ou <span style="color:#c62828"><strong>Refuser</strong></span> (rouge)</td></tr>
+  <tr><td>Hérité</td><td>ACE</td><td>« Oui » si la permission est héritée du parent (affiché en gris) · « Non » si explicite</td></tr>
+  <tr><td>Chemin</td><td>Parent</td><td>Chemin complet de l'objet</td></tr>
+</table>
+<h3>Lecture des résultats</h3>
+<ul>
+  <li>Les ACE <strong>héritées</strong> (« Hérité = Oui ») s'affichent en gris clair : elles sont normales et proviennent du dossier parent.</li>
+  <li>Les ACE <strong>explicites</strong> (« Hérité = Non ») s'affichent en noir : elles ont été définies directement sur cet objet.</li>
+  <li>Un <strong>Refuser</strong> explicite est une anomalie à investiguer : il bloque l'accès même si une règle « Autoriser » existe pour le même compte.</li>
+</ul>
+<div class="tip">
+  Pour un audit rapide d'un partage, utilisez le mode <strong>Récursif + Dossiers uniquement</strong>
+  (« Inclure fichiers » décoché) : les droits des fichiers héritent généralement de leur dossier parent,
+  ce qui suffit pour 90 % des cas.
+</div>
+<div class="warn">
+  La lecture des ACL NTFS nécessite le module <code>pywin32</code>.
+  Sur Linux / macOS, aucune ACL ne sera retournée.
+</div>
+<div class="info">
+  Le rapport est exportable en <strong>PDF</strong> (groupé par objet, refus en rouge)
+  et en <strong>CSV</strong> (7 colonnes : Nom, Type, Chemin, Principal, Droits, Accès, Hérité)
+  pour exploitation dans Excel ou un outil SIEM.
 </div>
 
 <!-- ================================================================== -->
