@@ -247,6 +247,73 @@ def diskspace_to_pdf(analysis: dict, folder: str, path: str):
     doc.print(printer)
 
 
+def recent_files(folder: str, days: int, show_hidden: bool = False) -> List[InventoryEntry]:
+    from datetime import timedelta
+    cutoff = datetime.now() - timedelta(days=days)
+    entries = collect(folder, recursive=True, show_hidden=show_hidden)
+    return sorted(
+        [e for e in entries if not e.is_dir and e.modified >= cutoff],
+        key=lambda e: e.modified,
+        reverse=True,
+    )
+
+
+def recent_to_csv(entries: List[InventoryEntry], path: str):
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerow(["Nom", "Taille", "Date de modification", "Propriétaire", "Chemin"])
+        for e in entries:
+            writer.writerow([e.name, _fmt_size(e.size), _fmt_date(e.modified), e.owner, e.path])
+
+
+def recent_to_html(entries: List[InventoryEntry], folder: str, days: int) -> str:
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    total_size = sum(e.size for e in entries)
+    rows = "".join(
+        f"<tr>"
+        f"<td>{_esc(e.name)}</td>"
+        f"<td style='text-align:right'>{_fmt_size(e.size)}</td>"
+        f"<td>{_fmt_date(e.modified)}</td>"
+        f"<td>{_esc(e.owner)}</td>"
+        f"<td style='color:#888;font-size:7.5pt'>{_esc(e.path)}</td>"
+        f"</tr>"
+        for e in entries
+    )
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>{_CSS}</style></head>
+<body>
+<h2>Fichiers récents</h2>
+<div class="meta">
+  Dossier : <b>{_esc(folder)}</b><br>
+  Modifiés dans les <b>{days} derniers jour(s)</b> — Généré le {now}
+</div>
+<div class="stats">
+  <b>{len(entries)}</b> fichier(s) · <b>{_fmt_size(total_size)}</b> au total
+</div>
+<table>
+  <thead><tr><th>Nom</th><th>Taille</th><th>Date de modification</th>
+  <th>Propriétaire</th><th>Chemin</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+</body></html>"""
+
+
+def recent_to_pdf(entries: List[InventoryEntry], folder: str, days: int, path: str):
+    from PyQt6.QtPrintSupport import QPrinter
+    from PyQt6.QtGui import QTextDocument
+    from PyQt6.QtCore import QSizeF
+
+    html = recent_to_html(entries, folder, days)
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+    printer.setOutputFileName(path)
+    doc = QTextDocument()
+    doc.setHtml(html)
+    page_rect = printer.pageRect(QPrinter.Unit.Point)
+    doc.setPageSize(QSizeF(page_rect.width(), page_rect.height()))
+    doc.print(printer)
+
+
 def duplicates_to_csv(groups: list, path: str):
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f, delimiter=";")

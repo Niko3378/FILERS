@@ -25,6 +25,7 @@ from ui.donation_dialog import DonationDialog
 from ui.inventory_panel import InventoryPanel
 from ui.diskspace_panel import DiskSpacePanel
 from ui.duplicates_panel import DuplicatesPanel
+from ui.recent_panel import RecentPanel
 from core import long_path_utils as lp
 
 
@@ -205,6 +206,9 @@ class MainWindow(QMainWindow):
         act_duplicates = QAction("Fichiers en double…", self)
         act_duplicates.triggered.connect(self._open_duplicates)
         outils.addAction(act_duplicates)
+        act_recent = QAction("Fichiers récents…", self)
+        act_recent.triggered.connect(self._open_recent)
+        outils.addAction(act_recent)
         outils.addSeparator()
         self._act_sleep = QAction("Désactiver la mise en veille", self, checkable=True)
         self._act_sleep.setToolTip("Empêche Windows de mettre l'ordinateur en veille.")
@@ -322,6 +326,9 @@ class MainWindow(QMainWindow):
 
         self._duplicates_panel = DuplicatesPanel()
         panels_tabs.addTab(self._duplicates_panel, "Doublons")
+
+        self._recent_panel = RecentPanel()
+        panels_tabs.addTab(self._recent_panel, "Fichiers récents")
 
         self._help_viewer = HelpViewer()
         panels_tabs.addTab(self._help_viewer, "? Aide")
@@ -570,6 +577,11 @@ class MainWindow(QMainWindow):
         panel = self._active_panel or self._left_panel
         self._duplicates_panel.set_folder(panel.get_current_path())
         self._panels_tabs.setCurrentWidget(self._duplicates_panel)
+
+    def _open_recent(self):
+        panel = self._active_panel or self._left_panel
+        self._recent_panel.set_folder(panel.get_current_path())
+        self._panels_tabs.setCurrentWidget(self._recent_panel)
 
     def _open_long_path_dialog(self):
         LongPathDialog(self).exec()
