@@ -33,6 +33,11 @@ SECTIONS = [
     ("Aperçu de fichiers",         "apercu"),
     ("Chemins longs",              "longpath"),
     ("  Tester les chemins longs", "longpath-test"),
+    ("Rapports",                   "rapports"),
+    ("  Inventaire de dossier",    "rapport-inventaire"),
+    ("  Analyse d'espace disque",  "rapport-espace"),
+    ("  Fichiers en double",       "rapport-doublons"),
+    ("  Fichiers récents",         "rapport-recents"),
     ("Raccourcis clavier",         "shortcuts"),
     ("Dépannage",                  "troubleshoot"),
 ]
@@ -137,7 +142,7 @@ _HTML_BODY = r"""
   le glisser-déposer.
 </p>
 <div class="info">
-  <strong>Version :</strong> 1.0.0 &nbsp;|&nbsp;
+  <strong>Version :</strong> 1.2.0 &nbsp;|&nbsp;
   <strong>Technologie :</strong> Python 3 + PyQt6 &nbsp;|&nbsp;
   <strong>Plateformes :</strong> Windows (NTFS), Linux, macOS
 </div>
@@ -150,7 +155,7 @@ _HTML_BODY = r"""
   <tr><td><strong>Barre de menus</strong></td><td>Fichier, Affichage, Outils, Aide</td></tr>
   <tr><td><strong>Barre d'outils</strong></td><td>Accès rapide : Copier (F5), Déplacer (F6), Réseau, Aide</td></tr>
   <tr><td><strong>Arborescence</strong> (gauche)</td><td>Navigation dans l'arborescence des disques, dossiers et favoris</td></tr>
-  <tr><td><strong>Zone centrale</strong></td><td>Onglets : Fichiers · Diff texte · Comparaison dossiers · Éditeur · Aperçu</td></tr>
+  <tr><td><strong>Zone centrale</strong></td><td>Onglets : Fichiers · Diff texte · Comparaison dossiers · Éditeur · Aperçu · Inventaire · Espace disque · Doublons · Fichiers récents</td></tr>
 </table>
 
 <h2>Disposition générale</h2>
@@ -843,6 +848,110 @@ print('Nettoyage termine')
   ou d'autres applications, c'est normal : seul Files Manager utilise le préfixe <code>\\?\</code>
   en interne. Pour une compatibilité universelle, activez <code>LongPathsEnabled</code>
   dans le registre.
+</div>
+
+<!-- ================================================================== -->
+<h1 id="rapports"><span class="anchor" id="a-rapports"></span>Rapports</h1>
+<p>
+  Files Manager intègre quatre générateurs de rapports accessibles depuis le menu
+  <strong>Outils</strong>. Chaque rapport s'ouvre dans un onglet dédié et permet
+  un export <strong>PDF</strong> et <strong>CSV</strong>.
+</p>
+<div class="info">
+  Tous les rapports utilisent un <strong>thread en arrière-plan</strong> : l'interface
+  reste réactive pendant l'analyse, même sur de grands volumes.
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<h2 id="rapport-inventaire"><span class="anchor" id="a-rapport-inventaire"></span>Inventaire de dossier</h2>
+<p>
+  <strong>Outils → Rapport d'inventaire…</strong><br>
+  Liste tous les fichiers et sous-dossiers d'un répertoire avec leurs métadonnées.
+</p>
+<table>
+  <tr><th>Option</th><th>Description</th></tr>
+  <tr><td><strong>Sous-dossiers</strong></td><td>Descend récursivement dans les sous-dossiers (coché par défaut)</td></tr>
+  <tr><td><strong>Fichiers cachés</strong></td><td>Inclut les fichiers et dossiers masqués</td></tr>
+</table>
+<h3>Colonnes</h3>
+<table>
+  <tr><th>Colonne</th><th>Description</th></tr>
+  <tr><td>Nom</td><td>Nom du fichier ou dossier (arborescence dépliable)</td></tr>
+  <tr><td>Type</td><td>Extension en majuscules ou « Dossier »</td></tr>
+  <tr><td>Taille</td><td>Taille du fichier ; taille cumulée pour les dossiers (mode récursif)</td></tr>
+  <tr><td>Date de modification</td><td>Dernière modification</td></tr>
+  <tr><td>Propriétaire</td><td>Compte Windows propriétaire du fichier</td></tr>
+</table>
+<div class="tip">
+  Cliquez sur un en-tête de colonne pour trier. Les dossiers restent toujours
+  regroupés avant les fichiers lors du tri par nom.
+  Utilisez le champ <strong>Filtrer</strong> pour rechercher un nom dans les résultats
+  sans relancer l'analyse.
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<h2 id="rapport-espace"><span class="anchor" id="a-rapport-espace"></span>Analyse d'espace disque</h2>
+<p>
+  <strong>Outils → Analyse d'espace disque…</strong><br>
+  Identifie les éléments qui consomment le plus d'espace dans un dossier.
+  L'analyse est toujours récursive.
+</p>
+<p>Les résultats sont présentés en trois onglets :</p>
+<table>
+  <tr><th>Onglet</th><th>Contenu</th></tr>
+  <tr><td><strong>Top fichiers</strong></td><td>Les 20 plus gros fichiers, triables par nom ou taille</td></tr>
+  <tr><td><strong>Top dossiers</strong></td><td>Les 20 dossiers les plus lourds (taille cumulée de leur contenu)</td></tr>
+  <tr><td><strong>Par extension</strong></td><td>Répartition par type de fichier : nombre, taille totale, pourcentage et barre visuelle</td></tr>
+</table>
+<div class="tip">
+  Le CSV exporté contient la répartition par extension, directement exploitable
+  dans Excel pour créer des graphiques.
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<h2 id="rapport-doublons"><span class="anchor" id="a-rapport-doublons"></span>Fichiers en double</h2>
+<p>
+  <strong>Outils → Fichiers en double…</strong><br>
+  Détecte les fichiers dont le contenu est identique à l'aide d'une empreinte MD5,
+  quel que soit leur nom ou emplacement.
+</p>
+<h3>Algorithme en deux phases</h3>
+<ol>
+  <li><strong>Groupement par taille</strong> — les fichiers de taille unique sont éliminés sans calcul MD5.</li>
+  <li><strong>Calcul MD5</strong> — uniquement pour les candidats de même taille. Une barre de progression
+    affiche le fichier en cours et l'avancement (ex : « 12/47 »).</li>
+</ol>
+<p>
+  Les résultats sont affichés par <strong>groupe de doublons</strong>, triés par espace
+  récupérable décroissant (le groupe le plus coûteux en tête). Chaque groupe indique
+  le nombre de copies, la taille unitaire et l'espace récupérable en rouge.
+</p>
+<div class="warning">
+  Files Manager n'effectue aucune suppression automatique. Consultez les résultats,
+  identifiez les copies à supprimer, puis utilisez le panneau de fichiers pour les effacer.
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<h2 id="rapport-recents"><span class="anchor" id="a-rapport-recents"></span>Fichiers récents</h2>
+<p>
+  <strong>Outils → Fichiers récents…</strong><br>
+  Liste tous les fichiers modifiés dans une période donnée, triés du plus récent au plus ancien.
+</p>
+<table>
+  <tr><th>Période prédéfinie</th><th>Équivalent</th></tr>
+  <tr><td>7 derniers jours</td><td>Semaine courante</td></tr>
+  <tr><td>30 derniers jours</td><td>Mois courant (défaut)</td></tr>
+  <tr><td>90 derniers jours</td><td>Trimestre</td></tr>
+  <tr><td>1 an</td><td>Année courante</td></tr>
+  <tr><td>Personnalisé…</td><td>Nombre de jours au choix (1 – 3 650)</td></tr>
+</table>
+<p>
+  Les colonnes (Nom, Taille, Date, Propriétaire, Chemin) sont toutes triables.
+  Le chemin complet facilite la localisation du fichier dans l'arborescence.
+</p>
+<div class="tip">
+  Exportez en CSV pour obtenir un journal des modifications récentes,
+  utile pour les audits ou les sauvegardes ciblées.
 </div>
 
 <!-- ================================================================== -->
