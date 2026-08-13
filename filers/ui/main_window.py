@@ -23,6 +23,7 @@ from ui.preview_panel import PreviewPanel
 from ui.long_path_dialog import LongPathDialog
 from ui.donation_dialog import DonationDialog
 from ui.inventory_panel import InventoryPanel
+from ui.diskspace_panel import DiskSpacePanel
 from core import long_path_utils as lp
 
 
@@ -197,6 +198,9 @@ class MainWindow(QMainWindow):
         act_inventory = QAction("Rapport d'inventaire…", self)
         act_inventory.triggered.connect(self._open_inventory)
         outils.addAction(act_inventory)
+        act_diskspace = QAction("Analyse d'espace disque…", self)
+        act_diskspace.triggered.connect(self._open_diskspace)
+        outils.addAction(act_diskspace)
         outils.addSeparator()
         self._act_sleep = QAction("Désactiver la mise en veille", self, checkable=True)
         self._act_sleep.setToolTip("Empêche Windows de mettre l'ordinateur en veille.")
@@ -308,6 +312,9 @@ class MainWindow(QMainWindow):
 
         self._inventory_panel = InventoryPanel()
         panels_tabs.addTab(self._inventory_panel, "Inventaire")
+
+        self._diskspace_panel = DiskSpacePanel()
+        panels_tabs.addTab(self._diskspace_panel, "Espace disque")
 
         self._help_viewer = HelpViewer()
         panels_tabs.addTab(self._help_viewer, "? Aide")
@@ -546,6 +553,11 @@ class MainWindow(QMainWindow):
         self._inventory_panel.set_folder(path)
         self._inventory_panel.set_show_hidden(self._local.show_hidden)
         self._panels_tabs.setCurrentWidget(self._inventory_panel)
+
+    def _open_diskspace(self):
+        panel = self._active_panel or self._left_panel
+        self._diskspace_panel.set_folder(panel.get_current_path())
+        self._panels_tabs.setCurrentWidget(self._diskspace_panel)
 
     def _open_long_path_dialog(self):
         LongPathDialog(self).exec()
