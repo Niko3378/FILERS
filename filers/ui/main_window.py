@@ -26,6 +26,7 @@ from ui.inventory_panel import InventoryPanel
 from ui.diskspace_panel import DiskSpacePanel
 from ui.duplicates_panel import DuplicatesPanel
 from ui.recent_panel import RecentPanel
+from ui.ntfs_panel import NtfsPanel
 from core import long_path_utils as lp
 
 
@@ -209,6 +210,9 @@ class MainWindow(QMainWindow):
         act_recent = QAction("Fichiers récents…", self)
         act_recent.triggered.connect(self._open_recent)
         outils.addAction(act_recent)
+        act_ntfs = QAction("Droits NTFS…", self)
+        act_ntfs.triggered.connect(self._open_ntfs)
+        outils.addAction(act_ntfs)
         outils.addSeparator()
         self._act_sleep = QAction("Désactiver la mise en veille", self, checkable=True)
         self._act_sleep.setToolTip("Empêche Windows de mettre l'ordinateur en veille.")
@@ -329,6 +333,9 @@ class MainWindow(QMainWindow):
 
         self._recent_panel = RecentPanel()
         panels_tabs.addTab(self._recent_panel, "Fichiers récents")
+
+        self._ntfs_panel = NtfsPanel()
+        panels_tabs.addTab(self._ntfs_panel, "Droits NTFS")
 
         self._help_viewer = HelpViewer()
         panels_tabs.addTab(self._help_viewer, "? Aide")
@@ -582,6 +589,11 @@ class MainWindow(QMainWindow):
         panel = self._active_panel or self._left_panel
         self._recent_panel.set_folder(panel.get_current_path())
         self._panels_tabs.setCurrentWidget(self._recent_panel)
+
+    def _open_ntfs(self):
+        panel = self._active_panel or self._left_panel
+        self._ntfs_panel.set_folder(panel.get_current_path())
+        self._panels_tabs.setCurrentWidget(self._ntfs_panel)
 
     def _open_long_path_dialog(self):
         LongPathDialog(self).exec()
