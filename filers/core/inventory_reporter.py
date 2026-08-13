@@ -247,6 +247,81 @@ def diskspace_to_pdf(analysis: dict, folder: str, path: str):
     doc.print(printer)
 
 
+def duplicates_to_csv(groups: list, path: str):
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerow(["Groupe", "Nb copies", "Taille unitaire", "Espace récupérable", "Nom", "Chemin", "Date de modification"])
+        for i, g in enumerate(groups, 1):
+            for fe in g["files"]:
+                writer.writerow([
+                    i,
+                    g["count"],
+                    g["size_fmt"],
+                    g["wasted"],
+                    fe.name,
+                    fe.path,
+                    _fmt_date(fe.modified),
+                ])
+
+
+def duplicates_to_html(groups: list, folder: str) -> str:
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    total_wasted = sum(g["wasted_bytes"] for g in groups)
+    total_files  = sum(g["count"] - 1 for g in groups)
+
+    rows = []
+    for i, g in enumerate(groups, 1):
+        bg = "#e3f2fd" if i % 2 == 0 else "#f3e5f5"
+        header = (
+            f"<tr style='background:{bg}'>"
+            f"<td colspan='3'><b>Groupe {i}</b> &nbsp;—&nbsp; "
+            f"{g['count']} copies · {g['size_fmt']} chacun · "
+            f"<span style='color:#c62828'>{g['wasted']} récupérables</span></td>"
+            f"</tr>"
+        )
+        rows.append(header)
+        for fe in g["files"]:
+            rows.append(
+                f"<tr>"
+                f"<td style='padding-left:20pt'>{_esc(fe.name)}</td>"
+                f"<td style='color:#888;font-size:7.5pt'>{_esc(fe.path)}</td>"
+                f"<td>{_fmt_date(fe.modified)}</td>"
+                f"</tr>"
+            )
+
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>{_CSS}</style></head>
+<body>
+<h2>Fichiers en double</h2>
+<div class="meta">Dossier : <b>{_esc(folder)}</b><br>Généré le {now}</div>
+<div class="stats">
+  <b>{len(groups)}</b> groupe(s) de doublons ·
+  <b>{total_files}</b> fichier(s) superflus ·
+  <b>{_fmt_size(total_wasted)}</b> récupérables
+</div>
+<table>
+  <thead><tr><th>Nom</th><th>Chemin</th><th>Date de modification</th></tr></thead>
+  <tbody>{"".join(rows)}</tbody>
+</table>
+</body></html>"""
+
+
+def duplicates_to_pdf(groups: list, folder: str, path: str):
+    from PyQt6.QtPrintSupport import QPrinter
+    from PyQt6.QtGui import QTextDocument
+    from PyQt6.QtCore import QSizeF
+
+    html = duplicates_to_html(groups, folder)
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+    printer.setOutputFileName(path)
+    doc = QTextDocument()
+    doc.setHtml(html)
+    page_rect = printer.pageRect(QPrinter.Unit.Point)
+    doc.setPageSize(QSizeF(page_rect.width(), page_rect.height()))
+    doc.print(printer)
+
+
 def to_csv(entries: List[InventoryEntry], path: str):
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f, delimiter=";")

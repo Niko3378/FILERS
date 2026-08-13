@@ -24,6 +24,7 @@ from ui.long_path_dialog import LongPathDialog
 from ui.donation_dialog import DonationDialog
 from ui.inventory_panel import InventoryPanel
 from ui.diskspace_panel import DiskSpacePanel
+from ui.duplicates_panel import DuplicatesPanel
 from core import long_path_utils as lp
 
 
@@ -201,6 +202,9 @@ class MainWindow(QMainWindow):
         act_diskspace = QAction("Analyse d'espace disque…", self)
         act_diskspace.triggered.connect(self._open_diskspace)
         outils.addAction(act_diskspace)
+        act_duplicates = QAction("Fichiers en double…", self)
+        act_duplicates.triggered.connect(self._open_duplicates)
+        outils.addAction(act_duplicates)
         outils.addSeparator()
         self._act_sleep = QAction("Désactiver la mise en veille", self, checkable=True)
         self._act_sleep.setToolTip("Empêche Windows de mettre l'ordinateur en veille.")
@@ -315,6 +319,9 @@ class MainWindow(QMainWindow):
 
         self._diskspace_panel = DiskSpacePanel()
         panels_tabs.addTab(self._diskspace_panel, "Espace disque")
+
+        self._duplicates_panel = DuplicatesPanel()
+        panels_tabs.addTab(self._duplicates_panel, "Doublons")
 
         self._help_viewer = HelpViewer()
         panels_tabs.addTab(self._help_viewer, "? Aide")
@@ -558,6 +565,11 @@ class MainWindow(QMainWindow):
         panel = self._active_panel or self._left_panel
         self._diskspace_panel.set_folder(panel.get_current_path())
         self._panels_tabs.setCurrentWidget(self._diskspace_panel)
+
+    def _open_duplicates(self):
+        panel = self._active_panel or self._left_panel
+        self._duplicates_panel.set_folder(panel.get_current_path())
+        self._panels_tabs.setCurrentWidget(self._duplicates_panel)
 
     def _open_long_path_dialog(self):
         LongPathDialog(self).exec()
